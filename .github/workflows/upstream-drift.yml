@@ -33,7 +33,7 @@ jobs:
       - name: Checkout guard-core@master
         uses: actions/checkout@v7.0.1
         with:
-          repository: rennf93/guard-core
+          repository: Guard-Core/guard-core
           ref: master
           path: guard-core-upstream
 

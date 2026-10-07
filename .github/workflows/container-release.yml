@@ -65,11 +65,11 @@ jobs:
           IMAGE_NAME=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "fastapi-guard-example" | head -n 1)
           echo "Using image: ${IMAGE_NAME}"
 
-          docker tag ${IMAGE_NAME} ghcr.io/${{ github.repository_owner }}/fastapi-guard-example:latest
-          docker push ghcr.io/${{ github.repository_owner }}/fastapi-guard-example:latest
+          docker tag ${IMAGE_NAME} ghcr.io/guard-core/fastapi-guard-example:latest
+          docker push ghcr.io/guard-core/fastapi-guard-example:latest
 
           if [[ "${{ env.IS_RELEASE }}" == "true" ]]; then
-            docker tag ${IMAGE_NAME} ghcr.io/${{ github.repository_owner }}/fastapi-guard-example:${{ env.VERSION }}
-            docker push ghcr.io/${{ github.repository_owner }}/fastapi-guard-example:${{ env.VERSION }}
+            docker tag ${IMAGE_NAME} ghcr.io/guard-core/fastapi-guard-example:${{ env.VERSION }}
+            docker push ghcr.io/guard-core/fastapi-guard-example:${{ env.VERSION }}
           fi
 
