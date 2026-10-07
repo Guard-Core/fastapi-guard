@@ -8,7 +8,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # environment: pypi
+    environment: pypi
     permissions:
       id-token: write
       contents: read
@@ -25,20 +25,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build twine
+          pip install build
 
       - name: Build package
         run: |
           python -m build
 
       - name: Publish package
-        env:
-          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-        run: |
-          twine upload dist/*
-          echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
-
+        uses: pypa/gh-action-pypi-publish@release/v1
       - name: Get and Update Version
         id: get_version
         run: |
