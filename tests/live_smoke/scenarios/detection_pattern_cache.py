@@ -32,12 +32,12 @@ def detection_pattern_validation_cache_path_enabled(ctx: ScenarioContext) -> Non
 
     attack = _echo(ctx.client, {"note": _XSS, "query": _SQLI})
     assert attack.status_code == 400, (
-        "detection_pattern_validation_cache_path set stopped blocking an attack payload: "
+        "detection_pattern_validation_cache_path set but an attack was not blocked: "
         f"{attack.status_code}"
     )
 
     repeat = _echo(ctx.client, {"note": _XSS, "query": _SQLI})
     assert repeat.status_code == 400, (
-        "repeated attack payload was not handled consistently with the validation cache on: "
+        "repeated attack payload inconsistent with the validation cache on: "
         f"{repeat.status_code}"
     )
