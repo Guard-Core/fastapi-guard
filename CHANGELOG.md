@@ -3,6 +3,16 @@ Release Notes
 
 ___
 
+v8.0.3 (2026-10-08)
+-------------------
+
+Guard-Core org migration
+------------------------
+
+Metadata release: PyPI project URLs, the docs canonical domain, and all repository links moved to the Guard-Core org. No code changes.
+
+___
+
 v8.0.2 (2026-09-26)
 -------------------
 

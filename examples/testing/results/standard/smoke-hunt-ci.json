@@ -1,0 +1,136 @@
+{
+  "timestamp": "2026-09-02T21:14:41.474347",
+  "configuration": {
+    "base_url": "http://localhost:8090",
+    "duration": 20,
+    "concurrency": 5,
+    "ramp_up": 3,
+    "delay": 0.05
+  },
+  "results": {
+    "total_requests": 1750,
+    "requests_per_second": 87.5,
+    "overall_success_rate": 16.514285714285716,
+    "duration": 20,
+    "security": {
+      "total_blocked": 613,
+      "security_triggered": 617,
+      "penetration_attempts": 436,
+      "penetration_blocked": 159,
+      "penetration_block_rate": 36.46788990825688,
+      "block_rate": 35.02857142857143
+    },
+    "categories": [
+      {
+        "category": "access_control",
+        "total_requests": 183,
+        "blocked_count": 71,
+        "passed_count": 2,
+        "error_count": 0,
+        "avg_response_time_ms": 3.2604287882320215,
+        "block_rate": 38.79781420765027,
+        "status_codes": {
+          "200": 2,
+          "403": 71,
+          "503": 110
+        }
+      },
+      {
+        "category": "basic",
+        "total_requests": 525,
+        "blocked_count": 190,
+        "passed_count": 8,
+        "error_count": 0,
+        "avg_response_time_ms": 3.2354881649925593,
+        "block_rate": 36.19047619047619,
+        "status_codes": {
+          "200": 8,
+          "403": 190,
+          "503": 327
+        }
+      },
+      {
+        "category": "behavioral",
+        "total_requests": 93,
+        "blocked_count": 32,
+        "passed_count": 2,
+        "error_count": 0,
+        "avg_response_time_ms": 2.8748922450568086,
+        "block_rate": 34.40860215053764,
+        "status_codes": {
+          "200": 2,
+          "403": 32,
+          "503": 59
+        }
+      },
+      {
+        "category": "bot_detection",
+        "total_requests": 91,
+        "blocked_count": 38,
+        "passed_count": 0,
+        "error_count": 0,
+        "avg_response_time_ms": 3.2257142957750258,
+        "block_rate": 41.75824175824176,
+        "status_codes": {
+          "403": 38,
+          "503": 53
+        }
+      },
+      {
+        "category": "content_filtering",
+        "total_requests": 28,
+        "blocked_count": 0,
+        "passed_count": 0,
+        "error_count": 0,
+        "avg_response_time_ms": 2.9944862638201033,
+        "block_rate": 0.0,
+        "status_codes": {
+          "415": 10,
+          "503": 18
+        }
+      },
+      {
+        "category": "penetration_detection",
+        "total_requests": 436,
+        "blocked_count": 159,
+        "passed_count": 0,
+        "error_count": 0,
+        "avg_response_time_ms": 3.352034529414746,
+        "block_rate": 36.46788990825688,
+        "status_codes": {
+          "400": 4,
+          "403": 159,
+          "503": 273
+        }
+      },
+      {
+        "category": "rate_limiting",
+        "total_requests": 348,
+        "blocked_count": 107,
+        "passed_count": 2,
+        "error_count": 0,
+        "avg_response_time_ms": 3.2445795234592483,
+        "block_rate": 30.747126436781606,
+        "status_codes": {
+          "200": 2,
+          "429": 1,
+          "403": 106,
+          "503": 239
+        }
+      },
+      {
+        "category": "security_headers",
+        "total_requests": 46,
+        "blocked_count": 16,
+        "passed_count": 0,
+        "error_count": 0,
+        "avg_response_time_ms": 3.7692992583565093,
+        "block_rate": 34.78260869565217,
+        "status_codes": {
+          "403": 16,
+          "503": 30
+        }
+      }
+    ]
+  }
+}
