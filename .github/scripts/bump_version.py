@@ -189,7 +189,7 @@ def update_index_md(version: str) -> bool:
     content = path.read_text()
 
     pattern = re.compile(
-        r"(docker pull ghcr\.io/rennf93/fastapi-guard-example:v)"
+        r"(docker pull ghcr\.io/guard-core/fastapi-guard-example:v)"
         r"[\d]+\.[\d]+\.[\d]+"
     )
     match = pattern.search(content)

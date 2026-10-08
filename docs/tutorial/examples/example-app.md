@@ -8,7 +8,7 @@ keywords: fastapi-guard example, example application, security middleware demo, 
 Example Application
 ===================
 
-The repository ships two runnable example apps under [`examples/`](https://github.com/rennf93/fastapi-guard/tree/master/examples): `simple_app`, a single-file app that exercises every security feature, and `advanced_app`, a production-shaped deployment (nginx, gunicorn, modular routers) built on the same configuration. Both wire `fastapi-guard` correctly, including eager initialization via `make_lifespan`, so their startup logs show the real `guard-core` pipeline output.
+The repository ships two runnable example apps under [`examples/`](https://github.com/Guard-Core/fastapi-guard/tree/master/examples): `simple_app`, a single-file app that exercises every security feature, and `advanced_app`, a production-shaped deployment (nginx, gunicorn, modular routers) built on the same configuration. Both wire `fastapi-guard` correctly, including eager initialization via `make_lifespan`, so their startup logs show the real `guard-core` pipeline output.
 
 ___
 
@@ -32,7 +32,7 @@ ___
 simple_app
 ----------
 
-[`examples/simple_app/main.py`](https://github.com/rennf93/fastapi-guard/blob/master/examples/simple_app/main.py) is a single file that configures `SecurityConfig`, wires `SecurityMiddleware`, wires the readiness route (`guard.status.add_status_route`), and defines every route group behind a `SecurityDecorator`:
+[`examples/simple_app/main.py`](https://github.com/Guard-Core/fastapi-guard/blob/master/examples/simple_app/main.py) is a single file that configures `SecurityConfig`, wires `SecurityMiddleware`, wires the readiness route (`guard.status.add_status_route`), and defines every route group behind a `SecurityDecorator`:
 
 ```python
 from guard import SecurityConfig, SecurityDecorator, SecurityMiddleware
@@ -96,7 +96,7 @@ ___
 advanced_app
 ------------
 
-[`examples/advanced_app/`](https://github.com/rennf93/fastapi-guard/tree/master/examples/advanced_app) is the same security surface split into modular routers behind nginx and gunicorn, meant to model a production layout. See its own [README](https://github.com/rennf93/fastapi-guard/blob/master/examples/advanced_app/README.md) for the full architecture diagram and endpoint list.
+[`examples/advanced_app/`](https://github.com/Guard-Core/fastapi-guard/tree/master/examples/advanced_app) is the same security surface split into modular routers behind nginx and gunicorn, meant to model a production layout. See its own [README](https://github.com/Guard-Core/fastapi-guard/blob/master/examples/advanced_app/README.md) for the full architecture diagram and endpoint list.
 
 ```bash
 cd examples/advanced_app

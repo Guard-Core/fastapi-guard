@@ -16,12 +16,12 @@ We take the security of FastAPI Guard seriously. If you believe you've found a s
 
 1. **Do not disclose the vulnerability publicly** until it has been addressed by the maintainers.
 2. **Report the vulnerability through GitHub's security advisory feature**:
-   - Go to the [Security tab](https://github.com/rennf93/fastapi-guard/security/advisories) of the FastAPI Guard repository
+   - Go to the [Security tab](https://github.com/Guard-Core/fastapi-guard/security/advisories) of the FastAPI Guard repository
    - Click on "New draft security advisory"
    - Fill in the details of the vulnerability
    - Submit the advisory
 
-   Alternatively, you can report vulnerabilities through [GitHub's private vulnerability reporting feature](https://github.com/rennf93/fastapi-guard/security/advisories/new).
+   Alternatively, you can report vulnerabilities through [GitHub's private vulnerability reporting feature](https://github.com/Guard-Core/fastapi-guard/security/advisories/new).
 
 3. Include the following information in your report:
    - A description of the vulnerability and its potential impact
@@ -83,7 +83,7 @@ FastAPI Guard provides several security features to protect your FastAPI applica
 - Country-based Access Control
 - Cloud Provider IP Blocking
 
-For detailed information on configuring these features, refer to the [documentation](https://rennf93.github.io/fastapi-guard).
+For detailed information on configuring these features, refer to the [documentation](https://guard-core.github.io/fastapi-guard).
 
 ## Threat Model
 

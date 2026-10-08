@@ -3,7 +3,7 @@ name = "fastapi_guard"
 version = "8.0.2"
 description = "Production-ready security middleware for FastAPI — IP filtering, rate limiting, penetration detection, and 20+ per-route security decorators."
 authors = [
-    {name = "Renzo Franceschini", email = "rennf93@users.noreply.github.com"}
+    {name = "Renzo Franceschini", email = "rennf93@guard-core.com"}
 ]
 readme = "README.md"
 license = "MIT"
@@ -44,10 +44,10 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://guard-core.com"
-Documentation = "https://rennf93.github.io/fastapi-guard/latest/"
-Repository = "https://github.com/rennf93/fastapi-guard"
-Changelog = "https://github.com/rennf93/fastapi-guard/blob/master/CHANGELOG.md"
-"Bug Tracker" = "https://github.com/rennf93/fastapi-guard/issues"
+Documentation = "https://guard-core.github.io/fastapi-guard/latest/"
+Repository = "https://github.com/Guard-Core/fastapi-guard"
+Changelog = "https://github.com/Guard-Core/fastapi-guard/blob/master/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/Guard-Core/fastapi-guard/issues"
 "Cloud Dashboard" = "https://app.guard-core.com"
 "Live Playground" = "https://playground.guard-core.com"
 

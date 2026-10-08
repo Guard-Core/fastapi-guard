@@ -202,17 +202,17 @@ The buffer/flush defaults (100 events, 30s) are safe. Do not raise `agent_buffer
 
 ## Tooling
 
-* Docs: <https://rennf93.github.io/fastapi-guard/latest/>
+* Docs: <https://guard-core.github.io/fastapi-guard/latest/>
 * Playground: <https://playground.guard-core.com>
 * Dashboard: <https://app.guard-core.com>
 * Use `uv` for package management and Ruff for linting when applicable.
 
 ## Related Projects
 
-* [guard-core](https://github.com/rennf93/guard-core): framework-agnostic security engine this adapter wraps.
-* [flaskapi-guard](https://github.com/rennf93/flaskapi-guard): Flask extension adapter (sync mirror).
-* [djapi-guard](https://github.com/rennf93/djapi-guard): Django middleware adapter (sync mirror).
-* [tornadoapi-guard](https://github.com/rennf93/tornadoapi-guard): Tornado handler/middleware adapter.
-* [guard-agent](https://github.com/rennf93/guard-agent): telemetry client used by `enable_agent=True`.
-* [guard-core-mcp](https://github.com/rennf93/guard-core-mcp): MCP server for config validation and docs search.
-* [guard-core-app](https://github.com/rennf93/guard-core-app): SaaS platform the agent reports to.
+* [guard-core](https://github.com/Guard-Core/guard-core): framework-agnostic security engine this adapter wraps.
+* [flaskapi-guard](https://github.com/Guard-Core/flaskapi-guard): Flask extension adapter (sync mirror).
+* [djapi-guard](https://github.com/Guard-Core/djapi-guard): Django middleware adapter (sync mirror).
+* [tornadoapi-guard](https://github.com/Guard-Core/tornadoapi-guard): Tornado handler/middleware adapter.
+* [guard-agent](https://github.com/Guard-Core/guard-agent): telemetry client used by `enable_agent=True`.
+* [guard-core-mcp](https://github.com/Guard-Core/guard-core-mcp): MCP server for config validation and docs search.
+* [guard-core-app](https://github.com/Guard-Core/guard-core-app): SaaS platform the agent reports to.

@@ -1,8 +1,8 @@
 site_name: FastAPI Guard
 site_description: Security middleware for FastAPI applications
-site_url: https://rennf93.github.io/fastapi-guard/latest/
-repo_name: rennf93/fastapi-guard
-repo_url: https://github.com/rennf93/fastapi-guard
+site_url: https://guard-core.github.io/fastapi-guard/latest/
+repo_name: Guard-Core/fastapi-guard
+repo_url: https://github.com/Guard-Core/fastapi-guard
 edit_uri: edit/master/docs/
 
 theme:
@@ -135,7 +135,7 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/rennf93/fastapi-guard
+      link: https://github.com/Guard-Core/fastapi-guard
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/fastapi-guard/
 
@@ -151,7 +151,7 @@ extra:
     - property: og:description
       content: Comprehensive security library for FastAPI applications providing IP control, request logging, and penetration detection
     - property: og:image
-      content: https://rennf93.github.io/fastapi-guard/latest/assets/fastapi_guard_legend.svg
+      content: https://guard-core.github.io/fastapi-guard/latest/assets/fastapi_guard_legend.svg
     - name: keywords
       content: fastapi, security, middleware, python, ip control, rate limiting, penetration detection
 
@@ -163,7 +163,7 @@ extra:
 
   author:
     name: Renzo Franceschini
-    url: https://github.com/rennf93
+    url: https://github.com/Guard-Core
 
 copyright: FastAPI Guard by
 

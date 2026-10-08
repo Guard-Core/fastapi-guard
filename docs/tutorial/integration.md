@@ -258,7 +258,7 @@ Configuration reference — agent fields on `SecurityConfig`
 | `agent_api_key` | `str \| None` | `None` | Required when `enable_agent=True`. |
 | `agent_project_id` | `str \| None` | `None` | The `proj_*` ID from the dashboard. Required for dashboard attribution. |
 | `agent_endpoint` | `str` | `https://api.guard-core.com` | Override only for self-hosted Guard Core deploys. |
-| `agent_buffer_size` | `int` | `100` | In-memory event buffer cap. The SaaS caps request bodies at 256 KiB, and a flush serializes the whole buffer into one POST, so keep this at the default (or lower for verbose events) instead of raising it toward thousands; prefer a shorter `agent_flush_interval` for lower latency. See [the agent integration reference](https://github.com/rennf93/fastapi-guard/blob/master/guard/.agents/skills/fastapi-guard/references/agent-integration.md) for the split-or-drop behavior if a batch does 413. |
+| `agent_buffer_size` | `int` | `100` | In-memory event buffer cap. The SaaS caps request bodies at 256 KiB, and a flush serializes the whole buffer into one POST, so keep this at the default (or lower for verbose events) instead of raising it toward thousands; prefer a shorter `agent_flush_interval` for lower latency. See [the agent integration reference](https://github.com/Guard-Core/fastapi-guard/blob/master/guard/.agents/skills/fastapi-guard/references/agent-integration.md) for the split-or-drop behavior if a batch does 413. |
 | `agent_flush_interval` | `int` | `30` | Seconds between automatic buffer flushes. `2` is a reasonable production setting. |
 | `agent_enable_events` | `bool` | `True` | Ship security events. |
 | `agent_enable_metrics` | `bool` | `True` | Ship request metrics. |

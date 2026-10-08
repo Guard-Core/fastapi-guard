@@ -1,3 +1,3 @@
 User-agent: *
 Allow: /
-Sitemap: https://rennf93.github.io/fastapi-guard/sitemap.xml 
+Sitemap: https://guard-core.github.io/fastapi-guard/sitemap.xml 
