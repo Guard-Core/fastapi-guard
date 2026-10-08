@@ -107,7 +107,7 @@ jobs:
         id: context7
         uses: rennf93/upsert-context7@1.1
         with:
-          operation: refresh
+          operation: add
 
       - name: Show result
         run: |
