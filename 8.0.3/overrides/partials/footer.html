@@ -1,0 +1,15 @@
+<footer class="md-footer">
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright footer-custom">
+        <a href="{{ config.repo_url }}">{{ config.site_name }}</a> by
+        <a href="{{ config.extra.author.url }}"> {{ config.extra.author.name }}</a>
+        <br>
+        Documentation was built using <a href="https://squidfunk.github.io/mkdocs-material/">MkDocs</a>
+      </div>
+      {% if config.extra.social %}
+      {% include "partials/social.html" %}
+      {% endif %}
+    </div>
+  </div>
+</footer>
