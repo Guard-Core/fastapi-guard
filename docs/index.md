@@ -106,10 +106,10 @@ Alternatively, you can run just the container:
 
 ```bash
 # Run with default settings
-docker run -host 0.0.0.0 -p 8000:8000 ghcr.io/guard-core/fastapi-guard-example:latest
+docker run --host 0.0.0.0 -p 8000:8000 ghcr.io/guard-core/fastapi-guard-example:latest
 
 # Run with custom Redis connection
-docker run -host 0.0.0.0 -p 8000:8000 \
+docker run --host 0.0.0.0 -p 8000:8000 \
  -e REDIS_URL=redis://your-redis-host:your-redis-port \
  -e REDIS_PREFIX=your-redis-prefix \
  -e IPINFO_TOKEN=your-ipinfo-token \
