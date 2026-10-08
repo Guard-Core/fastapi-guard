@@ -7,7 +7,7 @@ description: OpenTelemetry, Logfire, and event/metric/log muting for FastAPI Gua
 
 # Telemetry
 
-FastAPI Guard emits security events and request metrics through a composable telemetry pipeline provided by [guard-core](https://github.com/rennf93/guard-core). Events can be muted, metrics can be muted, individual security-check logs can be muted, and exports to OpenTelemetry and Logfire are opt-in.
+FastAPI Guard emits security events and request metrics through a composable telemetry pipeline provided by [guard-core](https://github.com/Guard-Core/guard-core). Events can be muted, metrics can be muted, individual security-check logs can be muted, and exports to OpenTelemetry and Logfire are opt-in.
 
 The middleware installs and tears down the telemetry pipeline automatically — you only set fields on `SecurityConfig`.
 
@@ -189,7 +189,7 @@ When `enable_enrichment=True`, every event and every metric routed through the m
 | `guard.behavior.correlation_key` | `str` (16-char hex) | SHA-256 prefix of `ip \| service \| floor(now/300)` — stable within a 5-minute window | events only |
 | `guard.behavior.recent_event_count` | `int` | Total events observed from the IP across all endpoints in the last 5 minutes | events only |
 
-All fields are nullable; absence = unavailable context. Every exporter (guard-agent, OTel, Logfire) sees the same enriched payload. See the [guard-core telemetry reference](https://github.com/rennf93/guard-core/blob/master/docs/architecture/telemetry.md) for the full behavior spec.
+All fields are nullable; absence = unavailable context. Every exporter (guard-agent, OTel, Logfire) sees the same enriched payload. See the [guard-core telemetry reference](https://github.com/Guard-Core/guard-core/blob/master/docs/architecture/telemetry.md) for the full behavior spec.
 
 ## Incoming `traceparent`
 
@@ -218,4 +218,4 @@ The error message lists the valid values. Common typos: `"suspicious"` instead o
 
 ## Reference
 
-The full field schema and pipeline behaviour is maintained in the [guard-core telemetry reference](https://github.com/rennf93/guard-core/blob/master/docs/architecture/telemetry.md).
+The full field schema and pipeline behaviour is maintained in the [guard-core telemetry reference](https://github.com/Guard-Core/guard-core/blob/master/docs/architecture/telemetry.md).

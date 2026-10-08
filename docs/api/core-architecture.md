@@ -10,7 +10,7 @@ Core Architecture (Internal)
 =============================
 
 !!! warning "Internal Implementation Details"
-    As of v5.0.0, all core modules live in the [guard-core](https://github.com/rennf93/guard-core) package (`guard_core/core/`). They should NOT be imported directly in user code. Always use the public API via `from guard import ...` or `from guard.middleware import SecurityMiddleware`.
+    As of v5.0.0, all core modules live in the [guard-core](https://github.com/Guard-Core/guard-core) package (`guard_core/core/`). They should NOT be imported directly in user code. Always use the public API via `from guard import ...` or `from guard.middleware import SecurityMiddleware`.
 
     This documentation is provided for contributors and advanced users who want to understand the internal architecture.
 

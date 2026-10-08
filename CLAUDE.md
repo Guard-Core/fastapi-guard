@@ -19,7 +19,7 @@ FastAPI Guard is a production-ready security library for FastAPI applications th
 
 ## Ecosystem Position
 
-As of v5.0.0, fastapi-guard is a **thin adapter** over [guard-core](https://github.com/rennf93/guard-core). All security logic (models, handlers, decorators, detection engine, protocols, utilities) lives in the `guard_core` package. This repo contains only the FastAPI/Starlette integration layer.
+As of v5.0.0, fastapi-guard is a **thin adapter** over [guard-core](https://github.com/Guard-Core/guard-core). All security logic (models, handlers, decorators, detection engine, protocols, utilities) lives in the `guard_core` package. This repo contains only the FastAPI/Starlette integration layer.
 
 ```
 guard-core (engine, PyPI dependency)   <- all security logic
@@ -55,7 +55,7 @@ from guard import GeoIPHandler, RedisHandlerProtocol
 
 ## Boundary Rules
 
-- **This repo MUST NOT** contain security logic (checks, handlers, models, detection patterns). Those belong in [guard-core](https://github.com/rennf93/guard-core). A change that looks like a security fix belongs upstream in guard-core, not here.
+- **This repo MUST NOT** contain security logic (checks, handlers, models, detection patterns). Those belong in [guard-core](https://github.com/Guard-Core/guard-core). A change that looks like a security fix belongs upstream in guard-core, not here.
 - **This repo MUST** wire Starlette/FastAPI native types to guard-core's `GuardRequest`, `GuardResponse`, and `GuardResponseFactory` protocols via `guard/adapters.py`.
 - **This repo MUST** keep `SecurityMiddleware` as a thin orchestrator that delegates to `SecurityCheckPipeline`; do not fork or reimplement pipeline behavior.
 - **This repo MUST** re-export new guard-core public surface from `guard/__init__.py` when it becomes part of the adapter's user-facing API.
@@ -293,10 +293,10 @@ REDIS_URL=redis://localhost:6379 uv run pytest -k "security_headers" -v
 
 ## Related Projects
 
-- **guard-core** - Framework-agnostic security engine (the engine this adapter wraps): <https://github.com/rennf93/guard-core>
-- **flaskapi-guard** - Flask extension adapter (sync mirror): <https://github.com/rennf93/flaskapi-guard>
-- **djapi-guard** - Django middleware adapter (sync mirror): <https://github.com/rennf93/djapi-guard>
-- **tornadoapi-guard** - Tornado handler/middleware adapter: <https://github.com/rennf93/tornadoapi-guard>
-- **guard-agent** - Telemetry and monitoring agent: <https://github.com/rennf93/guard-agent>
-- **guard-core-mcp** - MCP server for config validation and docs search: <https://github.com/rennf93/guard-core-mcp>
-- **guard-core-app** - SaaS platform (API, dashboard, playground): <https://github.com/rennf93/guard-core-app>
+- **guard-core** - Framework-agnostic security engine (the engine this adapter wraps): <https://github.com/Guard-Core/guard-core>
+- **flaskapi-guard** - Flask extension adapter (sync mirror): <https://github.com/Guard-Core/flaskapi-guard>
+- **djapi-guard** - Django middleware adapter (sync mirror): <https://github.com/Guard-Core/djapi-guard>
+- **tornadoapi-guard** - Tornado handler/middleware adapter: <https://github.com/Guard-Core/tornadoapi-guard>
+- **guard-agent** - Telemetry and monitoring agent: <https://github.com/Guard-Core/guard-agent>
+- **guard-core-mcp** - MCP server for config validation and docs search: <https://github.com/Guard-Core/guard-core-mcp>
+- **guard-core-app** - SaaS platform (API, dashboard, playground): <https://github.com/Guard-Core/guard-core-app>

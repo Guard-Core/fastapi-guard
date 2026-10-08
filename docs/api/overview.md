@@ -9,7 +9,7 @@ API Reference Overview
 ======================
 
 !!! info "Architecture Update (v5.0.0)"
-    As of v5.0.0, FastAPI Guard is a thin adapter over [guard-core](https://github.com/rennf93/guard-core). All core security modules now live in the `guard_core` package. The public API remains unchanged — use `from guard import ...` for all imports. See [Core Architecture](core-architecture.md) for details.
+    As of v5.0.0, FastAPI Guard is a thin adapter over [guard-core](https://github.com/Guard-Core/guard-core). All core security modules now live in the `guard_core` package. The public API remains unchanged — use `from guard import ...` for all imports. See [Core Architecture](core-architecture.md) for details.
 
 ___
 
