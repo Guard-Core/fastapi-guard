@@ -1,195 +1,195 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/installation/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/installation/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/release-notes/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/release-notes/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/behavior-manager/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/behavior-manager/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/cloud-manager/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/cloud-manager/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/core-architecture/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/core-architecture/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/decorators/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/decorators/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/ipban-manager/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/ipban-manager/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/ipinfo-manager/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/ipinfo-manager/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/overview/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/overview/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/ratelimit-manager/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/ratelimit-manager/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/redis-manager/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/redis-manager/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/security-headers/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/security-headers/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/security-middleware/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/security-middleware/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/sus-patterns/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/sus-patterns/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/api/utilities/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/api/utilities/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/advanced-customizations/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/advanced-customizations/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/first-steps/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/first-steps/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/integration/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/integration/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/websockets/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/websockets/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/configuration/cors/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/configuration/cors/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/configuration/logging/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/configuration/logging/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/configuration/security-config/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/configuration/security-config/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/configuration/telemetry/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/configuration/telemetry/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/access-control/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/access-control/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/advanced/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/advanced/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/authentication/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/authentication/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/behavioral/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/behavioral/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/content-filtering/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/content-filtering/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/overview/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/overview/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/rate-limiting/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/decorators/rate-limiting/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/examples/example-app/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/examples/example-app/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/ip-management/banning/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/ip-management/banning/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/ip-management/cloud-providers/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/ip-management/cloud-providers/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/ip-management/geolocation/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/ip-management/geolocation/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/ip-management/rate-limiter/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/ip-management/rate-limiter/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/redis-integration/caching/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/redis-integration/caching/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/custom-patterns/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/custom-patterns/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/http-security-headers/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/http-security-headers/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/monitoring/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/monitoring/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/passive-to-active/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/passive-to-active/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/penetration-detection/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/penetration-detection/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/proxy-security/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/proxy-security/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/architecture/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/architecture/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/components/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/components/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/configuration/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/configuration/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/overview/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/overview/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
     <url>
-         <loc>https://rennf93.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/performance-tuning/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://guard-core.github.io/fastapi-guard/latest/8.0.2/tutorial/security/detection-engine/performance-tuning/</loc>
+         <lastmod>2026-10-08</lastmod>
     </url>
 </urlset>
