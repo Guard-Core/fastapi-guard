@@ -278,6 +278,7 @@ Published on crates.io. **Production-ready.**
 | [guard-core-mcp](https://github.com/Guard-Core/guard-core-mcp) | MCP server: config validation, docs search, detection sandbox | [![PyPI](https://img.shields.io/pypi/v/guard-core-mcp)](https://pypi.org/project/guard-core-mcp/) |
 
 ---
+
 ## Documentation
 
 - [Installation](https://guard-core.github.io/fastapi-guard/latest/installation/)
