@@ -230,7 +230,7 @@ class PureASGISecurityMiddleware:
                 if message["type"] == "http.response.start":
                     captured["status"] = message["status"]
                     captured["headers"] = list(message["headers"])
-                elif message["type"] == "http.response.body":
+                elif message["type"] == "http.response.body":  # pragma: no branch
                     captured["body"] += message.get("body", b"")
 
             await self._call_downstream(
