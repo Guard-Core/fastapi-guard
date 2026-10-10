@@ -1,6 +1,6 @@
 [project]
 name = "fastapi_guard"
-version = "8.0.3"
+version = "8.1.0"
 description = "Production-ready security middleware for FastAPI — IP filtering, rate limiting, penetration detection, and 20+ per-route security decorators."
 authors = [
     {name = "Renzo Franceschini", email = "rennf93@guard-core.com"}

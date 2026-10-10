@@ -75,7 +75,7 @@ You can also download the example app as a Docker container from [GitHub Contain
 docker pull ghcr.io/guard-core/fastapi-guard-example:latest
 
 # Or pull a specific version (matches library releases)
-docker pull ghcr.io/guard-core/fastapi-guard-example:v8.0.3
+docker pull ghcr.io/guard-core/fastapi-guard-example:v8.1.0
 ```
 
 ___
