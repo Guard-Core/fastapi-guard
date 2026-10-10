@@ -31,6 +31,7 @@ from guard_core import (
     sus_patterns_handler as sus_patterns_handler,
 )
 
+from guard.asgi import PureASGISecurityMiddleware as PureASGISecurityMiddleware
 from guard.middleware import SecurityMiddleware as SecurityMiddleware
 from guard.websocket import (
     WS_CLOSE_CLIENT_ADDRESS_UNKNOWN as WS_CLOSE_CLIENT_ADDRESS_UNKNOWN,
@@ -52,6 +53,7 @@ except PackageNotFoundError:
 
 __all__ = [
     "__version__",
+    "PureASGISecurityMiddleware",
     "SecurityMiddleware",
     "guard_websocket",
     "make_guard_websocket",
