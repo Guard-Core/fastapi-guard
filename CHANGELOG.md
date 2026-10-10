@@ -9,7 +9,8 @@ v8.1.0 (2026-10-10)
 The pure-ASGI release: the full screening pipeline without BaseHTTPMiddleware (v8.1.0)
 ----------------------------------------------------------------------------------------------------------------
 
-### Added
+Added
+-----
 
 - **`PureASGISecurityMiddleware`: the full screening pipeline on raw ASGI** (fastapi-guard #156). Runs initialization, CORS preflight, path exclusions, IP extraction, ban lists, rate limiting, user-agent blocking, penetration detection and behavioral usage rules without `BaseHTTPMiddleware` - no anyio task group wraps the downstream app, so client disconnects can never cancel in-flight database calls, and responses stream through unbuffered. Body reads go through a caching receive that replays to the application; security and CORS headers are injected directly on `http.response.start`; WebSocket and lifespan scopes pass through untouched. Built for frameworks that ban `BaseHTTPMiddleware` by policy (open-webui carries a written rationale in main.py) and for the RFC thread asking for exactly this shape.
 - Scope note: decorator-driven response rules (return patterns) and `custom_response_modifier` need a materialized `Response` object and stay on the classic middleware; both classes ship side by side and the classic one is unchanged.
