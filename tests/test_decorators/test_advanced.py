@@ -221,10 +221,27 @@ async def test_honeypot_detection_configuration(
                 "Should have one custom validator"
             )
 
-            # Verify the validator is a honeypot validator by checking its closure
-            validator = route_config.custom_validators[0]
-            assert hasattr(validator, "__code__")
-            assert "trap_fields" in validator.__code__.co_freevars
+    trap = expected_fields[0]
+    form = endpoint == "/form-honeypot"
+    headers = {"X-Forwarded-For": "203.0.113.5"}
+
+    async def post(value: str) -> int:
+        async with AsyncClient(
+            transport=ASGITransport(app=advanced_decorator_app),
+            base_url="http://test",
+        ) as client:
+            if form:
+                response = await client.post(
+                    endpoint, headers=headers, data={trap: value}
+                )
+            else:
+                response = await client.post(
+                    endpoint, headers=headers, json={trap: value}
+                )
+        return response.status_code
+
+    assert await post("") == 200, "An empty trap field should pass"
+    assert await post("bot") == 403, "A filled trap field should be rejected"
 
 
 async def test_honeypot_detection_basic_functionality(
@@ -270,6 +287,7 @@ async def test_honeypot_form_detection(security_config: SecurityConfig) -> None:
 
     mock_request = AsyncMock()
     mock_request.method = "POST"
+    mock_request.url_full = "http://test/"
     mock_request.state = SimpleNamespace()
     form_body = b"bot_trap=filled"
     mock_request.headers.get = lambda key, default="": {
@@ -298,6 +316,7 @@ async def test_honeypot_json_exception(security_config: SecurityConfig) -> None:
 
     mock_request = AsyncMock()
     mock_request.method = "POST"
+    mock_request.url_full = "http://test/"
     mock_request.headers.get = lambda key, default="": (
         "application/json" if key == "content-type" else default
     )
@@ -323,6 +342,7 @@ async def test_honeypot_json_detection(security_config: SecurityConfig) -> None:
 
     mock_request = AsyncMock()
     mock_request.method = "POST"
+    mock_request.url_full = "http://test/"
     mock_request.state = SimpleNamespace()
     json_body = b'{"spam_check": "filled"}'
     mock_request.headers.get = lambda key, default="": {
