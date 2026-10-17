@@ -207,7 +207,7 @@ class PureASGISecurityMiddleware:
         start_time = time.time()
         await self._screen(request, caching_receive, wrapped_send, scope, start_time)
 
-    async def _screen(  # noqa: PLR0915
+    async def _screen(
         self,
         request: Request,
         caching_receive: _BodyCachingReceive,
