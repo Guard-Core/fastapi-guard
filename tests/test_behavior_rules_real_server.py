@@ -191,3 +191,55 @@ def test_global_body_pattern_rule_bans_on_both_middlewares() -> None:
 def test_rules_stay_quiet_below_the_threshold(middleware: Any) -> None:
     statuses = _statuses(middleware, _global_404_ban, ["/missing", "/ping", "/ping"])
     assert statuses == [404, 200, 200]
+
+
+def _throttle_app(middleware: Any, config: SecurityConfig) -> FastAPI:
+    app = FastAPI()
+    guard = SecurityDecorator(config)
+    app.state.guard_decorator = guard
+
+    @app.get("/missing")
+    async def missing() -> JSONResponse:
+        return JSONResponse({"error": "gone"}, status_code=404)
+
+    @app.get("/ping")
+    async def ping() -> dict[str, bool]:
+        return {"ok": True}
+
+    app.add_middleware(middleware, config=config)
+    return app
+
+
+def _responses(
+    middleware: Any, config: SecurityConfig, paths: list[str]
+) -> list[tuple[int, str | None]]:
+    app = _throttle_app(middleware, config)
+    ip = _unique_ip()
+    with _serve(app) as port:
+        with httpx.Client(base_url=f"http://127.0.0.1:{port}") as client:
+            responses = [
+                client.get(path, headers={"X-Forwarded-For": ip}) for path in paths
+            ]
+    return [(r.status_code, r.headers.get("Retry-After")) for r in responses]
+
+
+@pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
+def test_global_return_rule_halves_its_threshold_after_a_detection_hit(
+    middleware: Any,
+) -> None:
+    config = _config(
+        enable_penetration_detection=True,
+        global_behavior_rules=(
+            BehaviorRuleConfig(
+                rule_type="return_pattern",
+                threshold=4,
+                window=60,
+                pattern="status:404",
+                action="ban",
+                correlate_with_detection=True,
+            ),
+        ),
+    )
+    paths = ["/ping?q=<script>alert(1)</script>"] + ["/missing"] * 4 + ["/ping"]
+    statuses = [status for status, _ in _responses(middleware, config, paths)]
+    assert statuses[1:] == [404, 404, 404, 403, 403]
