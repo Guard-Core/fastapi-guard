@@ -19,11 +19,15 @@ Response-side differences from `SecurityMiddleware`:
 - Per-request metrics (request count, response time, error rate) are
   emitted once the downstream app finishes the response. Response time is
   measured until the response starts, the same as the classic middleware.
-- Decorator-driven response rules (return patterns) need a materialized
-  `Response` object and are only applied by the `BaseHTTPMiddleware`-based
-  middleware. On bypassed routes the downstream response is
-  handed to guard-core as a streaming `Response` (never buffered), so
-  `custom_response_modifier` runs there as it does in the classic middleware.
+- Behavior return rules (route and global) run once the downstream app has
+  sent the last body chunk. `status:` patterns read the response start
+  message; body patterns (with `behavior_scan_response_body`) read a bounded
+  prefix of the streamed body, never the whole body.
+- On bypassed routes the downstream response is handed to guard-core as a
+  streaming `Response` (never buffered), so `custom_response_modifier` runs
+  there as it does in the classic middleware. On the normal path
+  `custom_response_modifier` needs a materialized `Response` object and is
+  only applied by the `BaseHTTPMiddleware`-based middleware.
 
 The downstream app receives a replaying receive channel, so both guard and
 the application can read the request body.
@@ -32,9 +36,11 @@ the application can read the request body.
 import asyncio
 import time
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from fastapi import Response
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers.behavior_handler import config_to_rule
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.models import SecurityConfig
 from guard_core.utils import extract_client_ip
@@ -86,6 +92,32 @@ class _BodyCachingReceive:
         return replay_receive
 
 
+class _CapturedResponse:
+    """Read-only view of a streamed response for behavior return rules."""
+
+    def __init__(
+        self, status_code: int, headers: dict[str, str], body_prefix: bytes
+    ) -> None:
+        self._status_code = status_code
+        self._headers = headers
+        self._body_prefix = body_prefix
+
+    @property
+    def status_code(self) -> int:
+        return self._status_code
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return self._headers
+
+    @property
+    def body(self) -> bytes | None:
+        return None
+
+    async def read_body_prefix(self, max_bytes: int) -> bytes:
+        return self._body_prefix[:max_bytes]
+
+
 class _HeaderInjectingSend:
     """Send wrapper that merges security and CORS headers into the response
     start message, leaving the body stream untouched."""
@@ -102,11 +134,17 @@ class _HeaderInjectingSend:
         self._request = request
         self.status_code: int | None = None
         self.started_at: float | None = None
+        self.app_headers: dict[str, str] = {}
+        self.body_prefix = b""
 
     async def __call__(self, message: Message) -> None:
         if message["type"] == "http.response.start":
             self.status_code = message["status"]
             self.started_at = time.time()
+            self.app_headers = {
+                key.decode("latin-1"): value.decode("latin-1")
+                for key, value in message["headers"]
+            }
             headers: dict[bytes, bytes] = {
                 key: value for key, value in message["headers"]
             }
@@ -122,7 +160,17 @@ class _HeaderInjectingSend:
                 for key, value in cors.items():
                     headers.setdefault(key.encode("latin-1"), value.encode("latin-1"))
             message = {**message, "headers": list(headers.items())}
+        elif message["type"] == "http.response.body":
+            self._keep_body_prefix(message.get("body", b""))
         await self._send(message)
+
+    def _keep_body_prefix(self, chunk: bytes) -> None:
+        config = self._engine.config
+        if not config.behavior_scan_response_body:
+            return
+        room = config.behavior_max_response_body_inspect_bytes - len(self.body_prefix)
+        if room > 0:
+            self.body_prefix += chunk[:room]
 
 
 class PureASGISecurityMiddleware:
@@ -252,7 +300,37 @@ class PureASGISecurityMiddleware:
         await self._call_downstream(
             scope, caching_receive.replay(), wrapped_send, start_time
         )
+        await self._run_behavior_return_rules(
+            guard_request, client_ip, route_config, wrapped_send
+        )
         await self._record_metrics(guard_request, wrapped_send, start_time)
+
+    async def _run_behavior_return_rules(
+        self,
+        guard_request: StarletteGuardRequest,
+        client_ip: str | None,
+        route_config: Any,
+        wrapped_send: _HeaderInjectingSend,
+    ) -> None:
+        if wrapped_send.status_code is None or not client_ip:
+            return
+        engine = self._engine
+        response = _CapturedResponse(
+            wrapped_send.status_code,
+            wrapped_send.app_headers,
+            wrapped_send.body_prefix,
+        )
+        if route_config and route_config.behavior_rules:
+            await engine.behavioral_processor.process_return_rules(
+                guard_request, response, client_ip, route_config
+            )
+        if engine.config.global_behavior_rules:
+            await engine.behavioral_processor.process_global_return_rules(
+                guard_request,
+                response,
+                client_ip,
+                [config_to_rule(cfg) for cfg in engine.config.global_behavior_rules],
+            )
 
     async def _record_metrics(
         self,
