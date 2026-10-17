@@ -600,7 +600,6 @@ async def test_decorator_usage_rules_wrapper_returns_the_throttle_response() -> 
     request.state.guard_decorator = None
     request.state.guard_route_id = "test.throttled"
     request.state.guard_exclusion_scoped = False
-    request.state.guard_behavior_request_recorded = False
     route_config = Mock()
     route_config.behavior_rules = [
         BehaviorRule("usage", threshold=1, window=60, action="throttle")
@@ -608,7 +607,6 @@ async def test_decorator_usage_rules_wrapper_returns_the_throttle_response() -> 
     first = await middleware._process_decorator_usage_rules(
         request, "127.0.0.1", route_config
     )
-    request.state.guard_behavior_request_recorded = False
     second = await middleware._process_decorator_usage_rules(
         request, "127.0.0.1", route_config
     )
