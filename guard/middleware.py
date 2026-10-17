@@ -8,6 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from guard_core.core.behavioral import BehavioralContext, BehavioralProcessor
 from guard_core.core.bypass import BypassContext, BypassHandler
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
+from guard_core.core.checks.route_prefixes import template_route_prefix
 from guard_core.core.events import MetricsCollector, SecurityEventBus
 from guard_core.core.initialization import HandlerInitializer
 from guard_core.core.responses import ErrorResponseFactory, ResponseContext
@@ -29,7 +30,7 @@ from guard_core.utils import (
 )
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
-from starlette.routing import Match, get_route_path
+from starlette.routing import Match, Mount, get_route_path
 from starlette.types import ASGIApp
 
 from guard.adapters import (
@@ -49,6 +50,24 @@ _FULL_OR_PARTIAL = (Match.FULL, Match.PARTIAL)
 
 def _path_params(values: dict[str, Any]) -> tuple[tuple[str, str], ...]:
     return tuple(sorted((name, str(value)) for name, value in values.items()))
+
+
+def _router_route_prefixes(routes: Any, base: str) -> list[str]:
+    prefixes: list[str] = []
+    for route in routes:
+        path = getattr(route, "path", None)
+        if path is None:
+            prefixes.append("/")
+        elif isinstance(route, Mount):
+            mounted = base + path
+            prefixes.append(mounted)
+            inner = route.routes
+            prefixes.extend(
+                _router_route_prefixes(inner, mounted) if inner else [mounted + "/"]
+            )
+        else:
+            prefixes.append(template_route_prefix(base + path))
+    return prefixes
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -544,6 +563,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             if (endpoint := getattr(route, "endpoint", None)) is not None
         }
         return tuple(identities)
+
+    def static_route_prefixes(self) -> tuple[str, ...]:
+        routes = getattr(self._routing_app, "routes", None)
+        if routes is None:
+            return ("/",)
+        return tuple(_router_route_prefixes(routes, ""))
 
     def _build_preflight_starlette_response(
         self, request_headers: Any
