@@ -2328,8 +2328,10 @@ async def test_match_route_stops_on_self_nesting_router() -> None:
         def routes(self) -> Any:
             return [self]
 
-    matched = middleware._match_route([_SelfNestingRouter()], {"type": "http"}, set())
-    assert matched is None
+    matched = middleware._match_route(
+        [_SelfNestingRouter()], {"type": "http"}, set(), (Match.FULL,)
+    )
+    assert next(matched, None) is None
 
 
 async def test_match_route_visits_duplicate_mount_subtrees_once(

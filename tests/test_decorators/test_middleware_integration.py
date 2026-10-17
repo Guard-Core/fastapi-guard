@@ -566,6 +566,7 @@ async def test_route_specific_rate_limit_with_redis() -> None:
     mock_request = Request(_http_scope())
     mock_request.state.client_ip = "127.0.0.1"
     mock_request.state.is_whitelisted = False
+    mock_request.state.guard_route_id = "app.test"
 
     async def mock_call_next(request: Request) -> Response:
         return Response("ok", status_code=200)
@@ -586,6 +587,6 @@ async def test_route_specific_rate_limit_with_redis() -> None:
                 await middleware.dispatch(mock_request, mock_call_next)
                 assert mock_check.call_count >= 2
                 route_call = mock_check.call_args_list[0]
-                assert route_call[1]["endpoint_path"] == "/test"
+                assert route_call[1]["endpoint_path"] == "app.test"
                 assert route_call[1]["rate_limit"] == 5
                 assert route_call[1]["rate_limit_window"] == 60

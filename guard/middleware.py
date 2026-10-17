@@ -1,6 +1,6 @@
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import Request, Response
@@ -41,6 +41,14 @@ from guard.adapters import (
 
 if TYPE_CHECKING:
     from guard._middleware_state import MiddlewareState
+
+
+_FULL = (Match.FULL,)
+_FULL_OR_PARTIAL = (Match.FULL, Match.PARTIAL)
+
+
+def _path_params(values: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+    return tuple(sorted((name, str(value)) for name, value in values.items()))
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -93,6 +101,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 )
 
         self.security_pipeline: SecurityCheckPipeline | None = None
+        self._routing_app: Any = None
 
         self._guard_response_factory = StarletteResponseFactory()
 
@@ -354,72 +363,94 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         return unwrap_response(result)
 
     def _resolve_route(self, request: Request) -> Any:
-        route = request.scope.get("route")
+        return self._resolve_route_with_params(request.scope)[0]
+
+    def _resolve_route_with_params(self, scope: Any) -> tuple[Any, dict[str, Any]]:
+        route = scope.get("route")
         if route:
-            return route
-        app = request.scope.get("app")
+            return route, scope.get("path_params", {})
+        return next(self._matching_routes(scope, _FULL), (None, {}))
+
+    def _matching_routes(
+        self, scope: Any, accepted: tuple[Match, ...]
+    ) -> Iterator[tuple[Any, dict[str, Any]]]:
+        app = scope.get("app")
         routes = getattr(app, "routes", None)
         if not routes:
-            return None
+            return
         redirect_slashes = getattr(
             getattr(app, "router", app), "redirect_slashes", False
         )
-        return self._match_router(routes, request.scope, set(), redirect_slashes)
+        yield from self._match_router(routes, scope, set(), redirect_slashes, accepted)
 
     def _match_router(
-        self, routes: Any, scope: Any, seen: set[Any], redirect_slashes: bool
-    ) -> Any:
+        self,
+        routes: Any,
+        scope: Any,
+        seen: set[Any],
+        redirect_slashes: bool,
+        accepted: tuple[Match, ...],
+    ) -> Iterator[tuple[Any, dict[str, Any]]]:
         # Starlette's router answers a path none of its routes match with a 307 to the
         # same path with the trailing slash toggled, when a route matches there, so that
         # route's decorator config is the one that governs this request. Each router
         # decides with its own redirect_slashes: a mounted app for the paths under its
         # mount, the including app for an included router's routes.
-        route = self._match_route(routes, scope, seen)
-        if route is not None or not redirect_slashes:
-            return route
+        found = False
+        for match in self._match_route(routes, scope, seen, accepted):
+            found = True
+            yield match
+        if found or not redirect_slashes:
+            return
         route_path = get_route_path(scope)
         if route_path == "/" or any(
             self._route_match(r, scope)[0] != Match.NONE for r in routes
         ):
-            return None
+            return
         path = scope["path"]
         toggled = path.rstrip("/") if route_path.endswith("/") else f"{path}/"
-        return self._match_route(routes, {**scope, "path": toggled}, seen)
+        yield from self._match_route(routes, {**scope, "path": toggled}, seen, accepted)
 
-    def _match_route(self, routes: Any, scope: Any, seen: set[Any]) -> Any:
+    def _match_route(
+        self, routes: Any, scope: Any, seen: set[Any], accepted: tuple[Match, ...]
+    ) -> Iterator[tuple[Any, dict[str, Any]]]:
         # This middleware is a BaseHTTPMiddleware, so it runs before the router
         # and scope["route"] is unset. Replicate Starlette's matching, descending
         # into sub-routers / mounts (FastAPI's include_router inserts a wrapper
         # route whose real routes are nested inside), so per-route decorator
         # config resolves for path-parameter and include_router routes, not only
-        # routes flattened directly onto the app.
+        # routes flattened directly onto the app. Each hit is the route plus the
+        # path parameters Starlette captured on the way down.
         if not self._first_visit(seen, routes, scope):
-            return None
+            return
         for r in routes:
             match, child = self._route_match(r, scope)
-            if match != Match.FULL:
+            if match not in accepted:
                 continue
             r = self._unwrap_candidate(r)
+            params = child.get("path_params", {})
             if getattr(r, "endpoint", None) is not None:
-                return r
+                yield r, params
+                continue
             child_scope = {**scope, **child}
             if not self._first_visit(seen, r, child_scope):
                 continue
             sub_routes = self._sub_routes(r)
             if not sub_routes:
-                return r
-            # A Mount with middleware keeps the mounted app, whose routes these are, in
-            # _base_app and the middleware-wrapped one in app.
-            mounted = getattr(r, "_base_app", getattr(r, "app", None))
-            found = self._match_router(
-                sub_routes,
-                child_scope,
-                seen,
-                getattr(getattr(mounted, "router", mounted), "redirect_slashes", False),
-            )
-            if found is not None:
-                return found
-        return None
+                yield r, params
+            else:
+                # A Mount with middleware keeps the mounted app, whose routes these
+                # are, in _base_app and the middleware-wrapped one in app.
+                mounted = getattr(r, "_base_app", getattr(r, "app", None))
+                yield from self._match_router(
+                    sub_routes,
+                    child_scope,
+                    seen,
+                    getattr(
+                        getattr(mounted, "router", mounted), "redirect_slashes", False
+                    ),
+                    accepted,
+                )
 
     def _first_visit(self, seen: set[Any], node: Any, scope: Any) -> bool:
         # Replaces a fixed depth cap, which silently abandoned the walk and left
@@ -479,7 +510,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             if app_decorator:
                 guard_request.state.guard_decorator = app_decorator
 
-        route = self._resolve_route(request)
+        self._routing_app = request.scope.get("app")
+        route, path_params = self._resolve_route_with_params(request.scope)
         if not route:
             guard_request.state.guard_route_unresolved = True
             return
@@ -492,6 +524,26 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             guard_request.state.guard_route_id = ep._guard_route_id
         if hasattr(ep, "__module__") and hasattr(ep, "__qualname__"):
             guard_request.state.guard_endpoint_id = f"{ep.__module__}.{ep.__qualname__}"
+        if getattr(self.security_pipeline, "needs_route_identity", False):
+            guard_request.state.guard_route_identity = (ep, _path_params(path_params))
+
+    def resolve_route(
+        self, path: str
+    ) -> tuple[tuple[Any, tuple[tuple[str, str], ...]], ...]:
+        scope = {
+            "type": "http",
+            "path": path,
+            "root_path": "",
+            "method": "GET",
+            "headers": [],
+            "app": self._routing_app,
+        }
+        identities = {
+            (endpoint, _path_params(params)): None
+            for route, params in self._matching_routes(scope, _FULL_OR_PARTIAL)
+            if (endpoint := getattr(route, "endpoint", None)) is not None
+        }
+        return tuple(identities)
 
     def _build_preflight_starlette_response(
         self, request_headers: Any
