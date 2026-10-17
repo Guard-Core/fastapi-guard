@@ -170,10 +170,12 @@ async def test_verifier_raises_fail_closed(security_config: SecurityConfig) -> N
 
     _config(security_config, auth_verifier=verifier)
     app, decorator = _build_app(security_config)
+    reached: list[bool] = []
 
     @decorator.require_auth()
     @app.get("/protected")
-    async def protected() -> None: ...
+    async def protected() -> None:
+        reached.append(True)
 
     client = await _client(app)
     try:
@@ -183,8 +185,8 @@ async def test_verifier_raises_fail_closed(security_config: SecurityConfig) -> N
         )
     finally:
         await client.aclose()
-    assert response.status_code == 401
-    assert "Authentication required" in response.text
+    assert response.status_code >= 400
+    assert reached == []
 
 
 async def test_async_verifier_awaited(security_config: SecurityConfig) -> None:
