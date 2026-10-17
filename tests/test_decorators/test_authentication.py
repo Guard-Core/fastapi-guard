@@ -185,6 +185,47 @@ async def test_missing_headers_blocked(
 
 
 @pytest.mark.parametrize(
+    "endpoint,method,header,handler_message",
+    [
+        (
+            "/api-key-default",
+            "get",
+            "X-API-Key",
+            "API key required (default header)",
+        ),
+        (
+            "/api-key-custom",
+            "post",
+            "Authorization",
+            "API key required (custom header)",
+        ),
+    ],
+)
+async def test_api_key_route_refuses_a_missing_key_and_answers_a_present_one(
+    auth_decorator_app: FastAPI,
+    endpoint: str,
+    method: str,
+    header: str,
+    handler_message: str,
+) -> None:
+    """A request without the key never reaches the handler, one with it does."""
+    async with AsyncClient(
+        transport=ASGITransport(app=auth_decorator_app), base_url="http://test"
+    ) as client:
+        forwarded = {"X-Forwarded-For": "203.0.113.5"}
+
+        missing = await getattr(client, method)(endpoint, headers=forwarded)
+        assert missing.status_code in (400, 401)
+        assert handler_message not in missing.text
+
+        present = await getattr(client, method)(
+            endpoint, headers={**forwarded, header: "test-key"}
+        )
+        assert present.status_code == 200
+        assert present.json()["message"] == handler_message
+
+
+@pytest.mark.parametrize(
     "endpoint,headers,expected_message,description",
     [
         (

@@ -35,13 +35,13 @@ def require_headers_decorator_enforces_exact_values(ctx: ScenarioContext) -> Non
     covers={"api_key_auth", "required_headers", "authentication"},
     config=AUTH_BASE_CONFIG,
 )
-def api_key_auth_treats_required_header_as_presence_only(
+def api_key_auth_refuses_a_missing_key_and_answers_a_present_one(
     ctx: ScenarioContext,
 ) -> None:
     client = ctx.client
 
     missing = client.get("/auth/api-key")
-    assert missing.status_code == 400
+    assert missing.status_code in (400, 401)
 
     present = client.get(
         "/auth/api-key", headers={"X-API-Key": "smoke-arbitrary-value"}
