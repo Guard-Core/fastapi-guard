@@ -16,7 +16,7 @@ async def auth_decorator_app(security_config: SecurityConfig) -> FastAPI:
     app = FastAPI()
 
     security_config.trusted_proxies = ("127.0.0.1",)
-    security_config.whitelist = (*security_config.whitelist, "8.8.8.8")
+    security_config.whitelist = (*(security_config.whitelist or ()), "8.8.8.8")
     security_config.enforce_https = False
     security_config.enable_penetration_detection = False
     security_config.auth_verifier = lambda request, credential: (
