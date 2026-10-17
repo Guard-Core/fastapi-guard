@@ -144,6 +144,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             guard_decorator=self.guard_decorator,
         )
         self.route_resolver = RouteConfigResolver(routing_context)
+        self._global_throttle_rules = any(
+            rule.action == "throttle" for rule in config.global_behavior_rules
+        )
 
         self._build_event_dependent_contexts()
 
@@ -693,10 +696,11 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         if blocked_response is not None:
             return blocked_response
 
-        if route_config and route_config.behavior_rules and client_ip:
-            await self.behavioral_processor.process_usage_rules(
-                guard_request, client_ip, route_config
-            )
+        throttled_response = await self._apply_usage_rules(
+            request, guard_request, client_ip, route_config
+        )
+        if throttled_response is not None:
+            return throttled_response
 
         start_time = time.time()
         response = await call_next(request)
@@ -708,13 +712,33 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         self._inject_cors_headers(processed, request.headers)
         return processed
 
-    async def _process_decorator_usage_rules(
-        self, request: Request, client_ip: str, route_config: RouteConfig
-    ) -> None:
-        guard_request = StarletteGuardRequest(request)
-        await self.behavioral_processor.process_usage_rules(
+    async def _apply_usage_rules(
+        self,
+        request: Request,
+        guard_request: StarletteGuardRequest,
+        client_ip: str | None,
+        route_config: RouteConfig | None,
+    ) -> Response | None:
+        has_route_rules = route_config is not None and bool(route_config.behavior_rules)
+        if not client_ip or not (has_route_rules or self._global_throttle_rules):
+            return None
+        refused = await self.behavioral_processor.process_usage_rules(
             guard_request, client_ip, route_config
         )
+        if refused is None:
+            return None
+        response = unwrap_response(refused)
+        self._inject_cors_headers(response, request.headers)
+        return response
+
+    async def _process_decorator_usage_rules(
+        self, request: Request, client_ip: str, route_config: RouteConfig
+    ) -> Response | None:
+        guard_request = StarletteGuardRequest(request)
+        refused = await self.behavioral_processor.process_usage_rules(
+            guard_request, client_ip, route_config
+        )
+        return None if refused is None else unwrap_response(refused)
 
     async def _process_decorator_return_rules(
         self,

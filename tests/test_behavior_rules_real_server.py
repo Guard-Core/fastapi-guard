@@ -198,6 +198,11 @@ def _throttle_app(middleware: Any, config: SecurityConfig) -> FastAPI:
     guard = SecurityDecorator(config)
     app.state.guard_decorator = guard
 
+    @app.get("/limited")
+    @guard.usage_monitor(2, 60, "throttle")
+    async def limited() -> dict[str, bool]:
+        return {"ok": True}
+
     @app.get("/missing")
     async def missing() -> JSONResponse:
         return JSONResponse({"error": "gone"}, status_code=404)
@@ -221,6 +226,40 @@ def _responses(
                 client.get(path, headers={"X-Forwarded-For": ip}) for path in paths
             ]
     return [(r.status_code, r.headers.get("Retry-After")) for r in responses]
+
+
+@pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
+def test_route_throttle_answers_429_with_retry_after(middleware: Any) -> None:
+    responses = _responses(middleware, _config(), ["/limited"] * 4)
+    assert [status for status, _ in responses] == [200, 200, 429, 429]
+    assert [retry is None for _, retry in responses] == [True, True, False, False]
+    assert all(1 <= int(retry) <= 60 for _, retry in responses[2:] if retry)
+
+
+@pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
+def test_global_throttle_covers_unrouted_paths(middleware: Any) -> None:
+    config = _config(
+        global_behavior_rules=(
+            BehaviorRuleConfig(
+                rule_type="usage", threshold=2, window=60, action="throttle"
+            ),
+        )
+    )
+    responses = _responses(middleware, config, ["/nope-1", "/nope-2", "/nope-3"])
+    assert [status for status, _ in responses] == [404, 404, 429]
+
+
+@pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
+def test_throttled_requests_still_count_toward_a_global_ban_rule(
+    middleware: Any,
+) -> None:
+    config = _config(
+        global_behavior_rules=(
+            BehaviorRuleConfig(rule_type="usage", threshold=3, window=60, action="ban"),
+        )
+    )
+    responses = _responses(middleware, config, ["/limited"] * 5)
+    assert [status for status, _ in responses] == [200, 200, 429, 429, 403]
 
 
 @pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])

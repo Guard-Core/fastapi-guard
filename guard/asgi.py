@@ -292,10 +292,12 @@ class PureASGISecurityMiddleware:
             await self._send_response(blocked, request, wrapped_send._send)
             return
 
-        if route_config and route_config.behavior_rules and client_ip:
-            await engine.behavioral_processor.process_usage_rules(
-                guard_request, client_ip, route_config
-            )
+        throttled = await engine._apply_usage_rules(
+            request, guard_request, client_ip, route_config
+        )
+        if throttled is not None:
+            await self._send_response(throttled, request, wrapped_send._send)
+            return
 
         await self._call_downstream(
             scope, caching_receive.replay(), wrapped_send, start_time

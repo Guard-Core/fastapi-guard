@@ -590,3 +590,27 @@ async def test_route_specific_rate_limit_with_redis() -> None:
                 assert route_call[1]["endpoint_path"] == "app.test"
                 assert route_call[1]["rate_limit"] == 5
                 assert route_call[1]["rate_limit_window"] == 60
+
+
+async def test_decorator_usage_rules_wrapper_returns_the_throttle_response() -> None:
+    app = FastAPI()
+    middleware = SecurityMiddleware(app, config=SecurityConfig(enable_redis=False))
+    request = Mock()
+    request.method = "GET"
+    request.state.guard_decorator = None
+    request.state.guard_route_id = "test.throttled"
+    request.state.guard_exclusion_scoped = False
+    request.state.guard_behavior_request_recorded = False
+    route_config = Mock()
+    route_config.behavior_rules = [
+        BehaviorRule("usage", threshold=1, window=60, action="throttle")
+    ]
+    first = await middleware._process_decorator_usage_rules(
+        request, "127.0.0.1", route_config
+    )
+    request.state.guard_behavior_request_recorded = False
+    second = await middleware._process_decorator_usage_rules(
+        request, "127.0.0.1", route_config
+    )
+    assert first is None
+    assert second is not None and second.status_code == 429
