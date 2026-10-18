@@ -48,6 +48,11 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from guard._response_headers import (
+    merge_vary,
+    with_cors_headers,
+    with_default_headers,
+)
 from guard.adapters import StarletteGuardRequest, wrap_call_next
 from guard.middleware import SecurityMiddleware
 
@@ -137,6 +142,9 @@ class _HeaderInjectingSend:
         self.app_headers: dict[str, str] = {}
         self.body_prefix = b""
 
+    async def _security_headers(self) -> tuple[dict[str, str], frozenset[str]]:
+        return await _security_headers_for(self._engine, self._request)
+
     async def __call__(self, message: Message) -> None:
         if message["type"] == "http.response.start":
             self.status_code = message["status"]
@@ -145,21 +153,19 @@ class _HeaderInjectingSend:
                 key.decode("latin-1"): value.decode("latin-1")
                 for key, value in message["headers"]
             }
-            headers: dict[bytes, bytes] = {
-                key: value for key, value in message["headers"]
-            }
-            extra = await security_headers_manager.get_headers(
-                request_path=self._request.url.path, config=self._engine.config
+            headers = with_default_headers(
+                list(message["headers"]),
+                *await self._security_headers(),
             )
-            for key, value in extra.items():
-                headers.setdefault(key.encode("latin-1"), value.encode("latin-1"))
             if self._engine._cors_handler is not None:
-                cors = self._engine._cors_handler.build_response_headers(
-                    self._request.headers
+                headers = with_cors_headers(
+                    headers,
+                    self._engine._cors_handler.build_response_headers(
+                        self._request.headers
+                    ),
+                    replace=False,
                 )
-                for key, value in cors.items():
-                    headers.setdefault(key.encode("latin-1"), value.encode("latin-1"))
-            message = {**message, "headers": list(headers.items())}
+            message = {**message, "headers": headers}
         elif message["type"] == "http.response.body":
             self._keep_body_prefix(message.get("body", b""))
         await self._send(message)
@@ -171,6 +177,18 @@ class _HeaderInjectingSend:
         room = config.behavior_max_response_body_inspect_bytes - len(self.body_prefix)
         if room > 0:
             self.body_prefix += chunk[:room]
+
+
+async def _security_headers_for(
+    engine: SecurityMiddleware, request: Request
+) -> tuple[dict[str, str], frozenset[str]]:
+    manager = getattr(
+        engine.response_factory, "security_headers_manager", security_headers_manager
+    )
+    headers = await manager.get_headers(
+        request_path=request.url.path, config=engine.config
+    )
+    return headers, getattr(headers, "forced", frozenset())
 
 
 class PureASGISecurityMiddleware:
@@ -386,7 +404,12 @@ class PureASGISecurityMiddleware:
                 request.headers
             )
             for key, value in cors_headers.items():
-                response.headers.setdefault(key, value)
+                if key.lower() == "vary":
+                    response.headers[key] = merge_vary(
+                        response.headers.getlist("vary"), value
+                    )
+                else:
+                    response.headers.setdefault(key, value)
         await send(
             {
                 "type": "http.response.start",
@@ -447,24 +470,25 @@ class _InlineDownstream:
     async def _send_with_cors_headers(self, message: Message) -> None:
         if message["type"] == "http.response.start":
             self._response_started = True
-            message = {**message, "headers": self._headers_with_cors(message)}
+            message = {**message, "headers": await self._headers_with_guard(message)}
         await self._send(message)
 
-    def _headers_with_cors(self, start: Message) -> list[tuple[bytes, bytes]]:
-        headers = list(start["headers"])
-        cors_handler = self._middleware._engine._cors_handler
+    async def _headers_with_guard(self, start: Message) -> list[tuple[bytes, bytes]]:
+        engine = self._middleware._engine
+        headers = with_default_headers(
+            list(start["headers"]),
+            *await _security_headers_for(engine, self._request),
+        )
+        cors_handler = engine._cors_handler
         if cors_handler is None:
             return headers
         # Guard's CORS headers replace the app's of the same name, as
         # `_inject_cors_headers` does for the classic bypass response.
-        cors = {
-            name.encode("latin-1").lower(): value.encode("latin-1")
-            for name, value in cors_handler.build_response_headers(
-                self._request.headers
-            ).items()
-        }
-        kept = [(name, value) for name, value in headers if name.lower() not in cors]
-        return kept + list(cors.items())
+        return with_cors_headers(
+            headers,
+            cors_handler.build_response_headers(self._request.headers),
+            replace=True,
+        )
 
     async def raise_failure_after_response_sent(self) -> None:
         return None

@@ -33,6 +33,7 @@ from starlette.responses import Response as StarletteResponse
 from starlette.routing import Match, Mount, get_route_path
 from starlette.types import ASGIApp
 
+from guard._response_headers import merge_vary
 from guard.adapters import (
     StarletteGuardRequest,
     StarletteResponseFactory,
@@ -590,6 +591,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             return
         cors_headers = self._cors_handler.build_response_headers(request_headers)
         for key, value in cors_headers.items():
+            if key.lower() == "vary":
+                value = merge_vary(response.headers.getlist("vary"), value)
             response.headers[key] = value
 
     async def _handle_preflight(
