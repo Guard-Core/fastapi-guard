@@ -56,7 +56,7 @@ async def test_the_global_configure_reaches_a_guarded_app(middleware: type) -> N
     app = _app(middleware)
     assert (await _get(app, "/x"))["content-security-policy"].endswith("app.example")
 
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    security_headers_manager.configure(csp=GLOBAL_CSP, override_apps=True)
 
     for path in ("/x", "/y"):
         headers = await _get(app, path)
@@ -122,3 +122,15 @@ async def test_building_a_second_app_does_not_override_the_first(
     assert (await _get(second, "/x"))["content-security-policy"].endswith(
         "global.example"
     )
+
+
+@pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
+async def test_a_call_without_override_apps_does_not_reach_a_guarded_app(
+    middleware: type,
+) -> None:
+    app = _app(middleware)
+    await _get(app, "/x")
+
+    security_headers_manager.configure(csp=GLOBAL_CSP)
+
+    assert (await _get(app, "/x"))["content-security-policy"].endswith("app.example")
