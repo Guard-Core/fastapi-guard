@@ -93,3 +93,32 @@ async def test_the_response_manager_reaches_the_redis_of_its_app(
         engine.redis_handler
     )
     assert engine.redis_handler is not None
+
+
+@pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
+async def test_building_a_second_app_does_not_override_the_first(
+    middleware: type,
+) -> None:
+    first = _app(middleware)
+    second = FastAPI()
+    second.add_middleware(
+        middleware,  # type: ignore[arg-type]
+        config=SecurityConfig(
+            enable_redis=False,
+            enable_rate_limiting=False,
+            enable_ip_banning=False,
+            security_headers={"enabled": True, "csp": GLOBAL_CSP},
+        ),
+    )
+
+    @second.get("/x")
+    async def x() -> dict[str, bool]:
+        return {"ok": True}
+
+    await _get(first, "/x")
+    await _get(second, "/x")
+
+    assert (await _get(first, "/x"))["content-security-policy"].endswith("app.example")
+    assert (await _get(second, "/x"))["content-security-policy"].endswith(
+        "global.example"
+    )
