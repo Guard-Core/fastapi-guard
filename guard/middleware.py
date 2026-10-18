@@ -551,10 +551,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         if getattr(self.security_pipeline, "needs_route_identity", False):
             guard_request.state.guard_route_identity = (ep, _path_params(path_params))
 
-    def resolve_route(
-        self, path: str
-    ) -> tuple[tuple[Any, tuple[tuple[str, str], ...]], ...]:
-        scope = {
+    def _path_scope(self, path: str) -> dict[str, Any]:
+        return {
             "type": "http",
             "path": path,
             "root_path": "",
@@ -562,12 +560,31 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             "headers": [],
             "app": self._routing_app,
         }
+
+    def resolve_route(
+        self, path: str
+    ) -> tuple[tuple[Any, tuple[tuple[str, str], ...]], ...]:
         identities = {
             (endpoint, _path_params(params)): None
-            for route, params in self._matching_routes(scope, _FULL_OR_PARTIAL)
+            for route, params in self._matching_routes(
+                self._path_scope(path), _FULL_OR_PARTIAL
+            )
             if (endpoint := getattr(route, "endpoint", None)) is not None
         }
         return tuple(identities)
+
+    def allowed_methods(self, path: str) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                {
+                    method
+                    for route, _ in self._matching_routes(
+                        self._path_scope(path), _FULL_OR_PARTIAL
+                    )
+                    for method in getattr(route, "methods", None) or ()
+                }
+            )
+        )
 
     def static_route_prefixes(self) -> tuple[str, ...]:
         routes = getattr(self._routing_app, "routes", None)
