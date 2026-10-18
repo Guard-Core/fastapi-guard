@@ -271,10 +271,13 @@ async def _run_websocket_checks(
             code=WS_CLOSE_IP_NOT_ALLOWED.code, reason=WS_CLOSE_IP_NOT_ALLOWED.reason
         )
 
-    is_whitelisted = client_ip != UNKNOWN_CLIENT_IDENTITY and bool(config.whitelist)
+    whitelist_skips_checks = bool(config.whitelist) and not getattr(
+        config, "whitelist_access_only", False
+    )
+    is_whitelisted = client_ip != UNKNOWN_CLIENT_IDENTITY and whitelist_skips_checks
     websocket.state.is_whitelisted = is_whitelisted
 
-    if client_ip != UNKNOWN_CLIENT_IDENTITY and not config.whitelist:
+    if client_ip != UNKNOWN_CLIENT_IDENTITY and not whitelist_skips_checks:
         allowed = await _guarded_redis_call(
             check_rate_limit_by_ip(
                 client_ip, config, redis_handler=redis_handler, endpoint_path="ws"
