@@ -88,6 +88,27 @@ security_headers_manager.configure(
 - `cors_allow_methods` (list[str] | None): Allowed CORS methods
 - `cors_allow_headers` (list[str] | None): Allowed CORS headers
 
+Global `configure()` and the override
+-------------------------------------
+
+`configure()` on the global manager sets exactly what you pass.
+
+- **The manager's own headers** keep the full replace: what the call does not pass is absent on the manager.
+- **Every guarded app**: the keys you pass override the `security_headers` config of every guarded app in the process from the next response on, for paths already served and for paths never served. Keys you do not pass are not overridden, each app keeps its own value for them. `None` switches that header off for every app, `enabled=False` switches every app off, `hsts_max_age`, `hsts_include_subdomains` and `hsts_preload` merge over each app's `hsts` one by one, and an app whose own `security_headers` is off stays off.
+- **A bare `configure()`** clears the manager and the override. `await security_headers_manager.reset()` clears them too, in the process and in Redis.
+- **Never silent**: every call that changes the override logs one line and sends the security headers event. A call that drops keys from an active override (a bare call included) logs a WARNING that names the dropped keys, and the event lists them. Header values in the log line and the event are redacted (a custom `X-Auth-Token` value never appears).
+- **Opt-in**: without a call there is no override, and the guarded apps of a process behave as before.
+
+```python
+from guard import security_headers_manager
+
+security_headers_manager.configure(csp={"default-src": ["'self'", "https://cdn.example"]})  # every app: this CSP
+security_headers_manager.configure(frame_options="DENY")  # drops csp from the override: WARNING, apps use their own CSP again
+await security_headers_manager.reset()  # clears the override
+```
+
+With Redis on, each app saves the override with no TTL under `{redis_prefix}security_headers:override:{hash}`, where `hash` is the hash of the startup config the app runs, and each worker pulls it at most once every 5 seconds, so a call in one worker reaches the others within about 5 seconds. A worker started with another config ignores it, and a Redis error keeps the last applied override. Two services that share a `redis_prefix` and run an identical config share the override: give each service its own prefix.
+
 get_headers
 -----------
 
