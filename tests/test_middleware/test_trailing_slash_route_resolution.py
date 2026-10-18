@@ -1,5 +1,6 @@
 import pytest
 from fastapi import APIRouter, FastAPI
+from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from httpx import ASGITransport, AsyncClient
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -124,11 +125,16 @@ async def test_each_router_decides_with_its_own_redirect_slashes(
     assert await _post(app, path, ATTACK_BODY) == expected
 
 
+# guard-core 4.5.0 answers 404 for a path no route serves under strict resolution;
+# 4.4.0 answered 500. The marker is the per-middleware headers manager of 4.5.0.
+_UNSERVED_PATH_STATUS = 404 if hasattr(SecurityHeadersManager, "isolated") else 500
+
+
 @pytest.mark.parametrize(
     ("path", "expected"),
     [
         ("/triggers/abc/", (307, "http://test/triggers/abc")),
-        ("/missing/", (500, "")),
+        ("/missing/", (_UNSERVED_PATH_STATUS, "")),
     ],
 )
 async def test_strict_route_resolution_accepts_the_other_slash_form(

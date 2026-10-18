@@ -68,6 +68,12 @@ def _app(middleware: Any, config: SecurityConfig) -> FastAPI:
     async def plain() -> Response:
         return Response("ok")
 
+    @app.get("/own-cors")
+    async def own_cors() -> Response:
+        response = Response("ok")
+        response.headers["access-control-allow-origin"] = "https://mine.example"
+        return response
+
     @app.get("/csp")
     async def csp() -> Response:
         response = Response("ok")
@@ -227,3 +233,14 @@ async def test_a_blocked_response_carries_the_security_headers(
 
     assert response.status_code == 403
     assert _values(response, "x-content-type-options") == ["nosniff"]
+
+
+async def test_the_apps_own_cors_header_wins_on_the_pure_asgi_response() -> None:
+    config = _config(enable_cors=True, cors_allow_origins=[_ORIGIN])
+
+    response = await _get(
+        PureASGISecurityMiddleware, config, "/own-cors", origin=_ORIGIN
+    )
+
+    assert _values(response, "access-control-allow-origin") == ["https://mine.example"]
+    assert _values(response, "vary") == ["Origin"]
