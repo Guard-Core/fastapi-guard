@@ -239,6 +239,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             logger=self.logger,
             metrics_collector=self.metrics_collector,
             agent_handler=self.agent_handler,
+            redis_handler=self.redis_handler,
             guard_decorator=self.guard_decorator,
             response_factory=self._guard_response_factory,
         )
