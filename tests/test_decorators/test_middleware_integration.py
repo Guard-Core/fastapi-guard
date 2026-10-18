@@ -6,6 +6,7 @@ from guard_core.decorators.base import RouteConfig
 from guard_core.detection_result import DetectionResult
 from guard_core.handlers.behavior_handler import BehaviorRule
 from guard_core.protocols import GuardResponse
+from httpx import ASGITransport, AsyncClient
 from starlette.datastructures import Headers
 
 from guard import SecurityConfig, SecurityDecorator
@@ -551,45 +552,38 @@ async def test_route_specific_middleware_validations(
             assert response.status_code == expected_status
 
 
-async def test_route_specific_rate_limit_with_redis() -> None:
+async def test_route_specific_rate_limit_counts_apart_from_the_global_limit() -> None:
     app = FastAPI()
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
-    middleware = SecurityMiddleware(app, config=config)
+    config = SecurityConfig(
+        enable_redis=False,
+        enable_penetration_detection=False,
+        rate_limit=1000,
+        rate_limit_window=60,
+        trusted_proxies=("127.0.0.1",),
+        whitelist=(),
+    )
+    decorator = SecurityDecorator(config)
 
-    mock_redis_handler = Mock()
-    middleware.redis_handler = mock_redis_handler
+    @decorator.rate_limit(requests=5, window=60)
+    @app.get("/limited")
+    async def limited() -> dict[str, str]:
+        return {"ok": "yes"}
 
-    mock_route_config = RouteConfig()
-    mock_route_config.rate_limit = 5
-    mock_route_config.rate_limit_window = 60
+    @app.get("/open")
+    async def open_route() -> dict[str, str]:
+        return {"ok": "yes"}
 
-    mock_request = Request(_http_scope())
-    mock_request.state.client_ip = "127.0.0.1"
-    mock_request.state.is_whitelisted = False
-    mock_request.state.guard_route_id = "app.test"
+    app.add_middleware(SecurityMiddleware, config=config)
+    app.state.guard_decorator = decorator
 
-    async def mock_call_next(request: Request) -> Response:
-        return Response("ok", status_code=200)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        limited_codes = [(await client.get("/limited")).status_code for _ in range(7)]
+        open_codes = [(await client.get("/open")).status_code for _ in range(7)]
 
-    with patch.object(
-        middleware.route_resolver, "get_route_config", return_value=mock_route_config
-    ):
-        with patch.object(
-            middleware.rate_limit_handler,
-            "check_rate_limit",
-            new_callable=AsyncMock,
-            return_value=None,
-        ) as mock_check:
-            with patch(
-                "guard_core.utils.detect_penetration_attempt",
-                return_value=DetectionResult(is_threat=False, trigger_info=""),
-            ):
-                await middleware.dispatch(mock_request, mock_call_next)
-                assert mock_check.call_count >= 2
-                route_call = mock_check.call_args_list[0]
-                assert route_call[1]["endpoint_path"] == "app.test"
-                assert route_call[1]["rate_limit"] == 5
-                assert route_call[1]["rate_limit_window"] == 60
+    assert limited_codes == [200] * 5 + [429] * 2
+    assert open_codes == [200] * 7
 
 
 async def test_decorator_usage_rules_wrapper_returns_the_throttle_response() -> None:

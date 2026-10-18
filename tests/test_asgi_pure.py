@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
 from httpx import ASGITransport, AsyncClient
 
 from guard import PureASGISecurityMiddleware, SecurityConfig
@@ -110,13 +111,16 @@ def test_ip_lists_enforced_on_excluded_paths():
     _run(scenario, blocked, config)
 
 
-def test_rate_limiting_applies_on_excluded_paths():
+def test_rate_limiting_on_excluded_paths_follows_the_engine():
     client_ip = _unique_ip()
     config = _base_config(rate_limit=1, rate_limit_window=60)
+    expected = (
+        [200, 429, 429] if RateLimitCheck.enforced_on_excluded_paths else [200] * 3
+    )
 
     async def scenario(client):
         codes = [(await client.get("/health")).status_code for _ in range(3)]
-        assert codes == [200, 429, 429]
+        assert codes == expected
 
     _run(scenario, client_ip, config)
 

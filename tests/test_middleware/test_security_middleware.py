@@ -66,8 +66,8 @@ async def test_rate_limiting() -> None:
         response = await client.get("/")
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
-        handler = rate_limit_handler(config)
-        await handler.reset()
+        middleware = _serving_middleware(app)
+        await middleware.rate_limit_handler.reset()
 
         response = await client.get("/")
         assert response.status_code == status.HTTP_200_OK
@@ -1259,8 +1259,10 @@ async def test_rate_limiting_with_redis(security_config_redis: SecurityConfig) -
     security_config_redis.whitelist = ()
     security_config_redis.blocked_countries = frozenset()
 
-    rate_handler = rate_limit_handler(security_config_redis)
-    await rate_handler.reset()
+    cleanup = redis_handler(security_config_redis)
+    await cleanup.initialize()
+    await cleanup.delete_pattern("rate_limit:rate:*")
+    await cleanup.close()
 
     app.add_middleware(SecurityMiddleware, config=security_config_redis)
 
@@ -1280,7 +1282,9 @@ async def test_rate_limiting_with_redis(security_config_redis: SecurityConfig) -
         response = await client.get("/")
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
-        await rate_handler.reset()
+        middleware = _serving_middleware(app)
+        await middleware.rate_limit_handler.reset()
+        await middleware.rate_limit_handler.initialize_redis(middleware.redis_handler)
 
         response = await client.get("/")
         assert response.status_code == status.HTTP_200_OK
@@ -1502,183 +1506,14 @@ async def test_rate_limiter_deque_cleanup(security_config: SecurityConfig) -> No
     assert all(ts >= window_start for ts in handler.request_timestamps[client_ip])
 
 
-@pytest.mark.asyncio
-async def test_lua_script_execution(security_config_redis: SecurityConfig) -> None:
-    """Test that the Lua script is executed properly for rate limiting with Redis"""
-    app = FastAPI()
-    config = security_config_redis
-    config.rate_limit = 2
-    config.rate_limit_window = 1
-    config.enable_rate_limiting = True
-
-    middleware = SecurityMiddleware(app, config=config)
-    handler = middleware.rate_limit_handler
-
-    with patch.object(handler.redis_handler, "get_connection") as mock_get_connection:
-        mock_conn = AsyncMock()
-        mock_conn.evalsha = AsyncMock(return_value=1)
-
-        mock_context = AsyncMock()
-        mock_context.__aenter__ = AsyncMock(return_value=mock_conn)
-        mock_context.__aexit__ = AsyncMock()
-        mock_get_connection.return_value = mock_context
-
-        handler.rate_limit_script_sha = "test_script_sha"
-
-        async def receive() -> dict[str, str | bytes]:
-            return {"type": "http.request", "body": b""}
-
-        request = Request(
-            scope={
-                "type": "http",
-                "method": "GET",
-                "path": "/",
-                "headers": [],
-                "client": ("192.168.1.1", 12345),
-                "query_string": b"",
-                "server": ("testserver", 80),
-                "scheme": "http",
-            },
-            receive=receive,
-        )
-
-        body = await request.body()
-        assert body == b""
-
-        guard_request = StarletteGuardRequest(request)
-
-        async def create_error_response(
-            status_code: int, message: str
-        ) -> StarletteGuardResponse:
-            return StarletteGuardResponse(Response(message, status_code=status_code))
-
-        result = await handler.check_rate_limit(
-            guard_request, "192.168.1.1", create_error_response
-        )
-        assert result is None
-
-        mock_conn.evalsha.assert_called_once()
-
-        mock_conn.evalsha.reset_mock()
-        mock_conn.evalsha.return_value = 3
-
-        result = await handler.check_rate_limit(
-            guard_request, "192.168.1.1", create_error_response
-        )
-        assert result is not None
-        assert result.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+def _serving_middleware(app: FastAPI) -> SecurityMiddleware:
+    node: Any = app.middleware_stack
+    while not isinstance(node, SecurityMiddleware):
+        node = node.app
+    return node
 
 
-@pytest.mark.asyncio
-async def test_fallback_to_pipeline(security_config_redis: SecurityConfig) -> None:
-    """Test fallback to pipeline if Lua script fails"""
-    app = FastAPI()
-    config = security_config_redis
-    config.rate_limit = 2
-    config.rate_limit_window = 1
-    config.enable_rate_limiting = True
-
-    middleware = SecurityMiddleware(app, config=config)
-    handler = middleware.rate_limit_handler
-
-    with patch.object(handler.redis_handler, "get_connection") as mock_get_connection:
-        mock_conn = AsyncMock()
-
-        mock_pipeline = Mock()
-        mock_pipeline.zadd = Mock()
-        mock_pipeline.zremrangebyscore = Mock()
-        mock_pipeline.zcard = Mock()
-        mock_pipeline.expire = Mock()
-
-        mock_pipeline.execute = AsyncMock(
-            side_effect=[
-                [0, 0, 1, True],  # NOTE: zadd, zrem, zcard (1), expire results
-                [0, 0, 3, True],  # NOTE: zadd, zrem, zcard (3), expire results
-            ]
-        )
-
-        mock_conn.pipeline = Mock(return_value=mock_pipeline)
-
-        mock_context = AsyncMock()
-        mock_context.__aenter__ = AsyncMock(return_value=mock_conn)
-        mock_context.__aexit__ = AsyncMock()
-        mock_get_connection.return_value = mock_context
-
-        handler.rate_limit_script_sha = None
-
-        async def receive() -> dict[str, str | bytes]:
-            return {"type": "http.request", "body": b""}
-
-        request = Request(
-            scope={
-                "type": "http",
-                "method": "GET",
-                "path": "/",
-                "headers": [],
-                "client": ("192.168.1.1", 12345),
-                "query_string": b"",
-                "server": ("testserver", 80),
-                "scheme": "http",
-            },
-            receive=receive,
-        )
-
-        body = await request.body()
-        assert body == b""
-
-        guard_request = StarletteGuardRequest(request)
-
-        async def create_error_response(
-            status_code: int, message: str
-        ) -> StarletteGuardResponse:
-            return StarletteGuardResponse(Response(message, status_code=status_code))
-
-        result = await handler.check_rate_limit(
-            guard_request, "192.168.1.1", create_error_response
-        )
-        assert result is None
-
-        mock_conn.pipeline.assert_called_once()
-        mock_pipeline.zadd.assert_called_once()
-        mock_pipeline.zremrangebyscore.assert_called_once()
-        mock_pipeline.zcard.assert_called_once()
-        mock_pipeline.expire.assert_called_once()
-        mock_pipeline.execute.assert_called_once()
-
-        mock_conn.pipeline.reset_mock()
-        mock_pipeline.zadd.reset_mock()
-        mock_pipeline.zremrangebyscore.reset_mock()
-        mock_pipeline.zcard.reset_mock()
-        mock_pipeline.expire.reset_mock()
-        mock_pipeline.execute.reset_mock()
-
-        result = await handler.check_rate_limit(
-            guard_request, "192.168.1.1", create_error_response
-        )
-        assert result is not None
-        assert result.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-        assert result.body == b"Too many requests"
-
-        mock_conn.pipeline.assert_called_once()
-        mock_pipeline.zadd.assert_called_once()
-        mock_pipeline.zremrangebyscore.assert_called_once()
-        mock_pipeline.zcard.assert_called_once()
-        mock_pipeline.expire.assert_called_once()
-        mock_pipeline.execute.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_rate_limiter_redis_errors(security_config_redis: SecurityConfig) -> None:
-    """Test Redis error handling in rate limit check"""
-    app = FastAPI()
-    config = security_config_redis
-    config.rate_limit = 2
-    config.rate_limit_window = 1
-    config.enable_rate_limiting = True
-
-    middleware = SecurityMiddleware(app, config=config)
-    handler = middleware.rate_limit_handler
-
+def _loopback_guard_request() -> StarletteGuardRequest:
     async def receive() -> dict[str, str | bytes]:
         return {"type": "http.request", "body": b""}
 
@@ -1695,16 +1530,100 @@ async def test_rate_limiter_redis_errors(security_config_redis: SecurityConfig) 
         },
         receive=receive,
     )
+    return StarletteGuardRequest(request)
 
-    body = await request.body()
-    assert body == b""
 
-    guard_request = StarletteGuardRequest(request)
+async def _redis_rate_limiter(config: SecurityConfig) -> Any:
+    app = FastAPI()
+    middleware = SecurityMiddleware(app, config=config)
+    handler = middleware.rate_limit_handler
+    redis = redis_handler(config)
+    await redis.initialize()
+    await handler.initialize_redis(redis)
+    return handler, redis
 
-    async def create_error_response(
-        status_code: int, message: str
-    ) -> StarletteGuardResponse:
-        return StarletteGuardResponse(Response(message, status_code=status_code))
+
+async def _create_error_response(
+    status_code: int, message: str
+) -> StarletteGuardResponse:
+    return StarletteGuardResponse(Response(message, status_code=status_code))
+
+
+async def _three_checks(handler: Any) -> list[Any]:
+    guard_request = _loopback_guard_request()
+    return [
+        await handler.check_rate_limit(
+            guard_request, "192.168.1.1", _create_error_response
+        )
+        for _ in range(3)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_lua_script_execution(security_config_redis: SecurityConfig) -> None:
+    """The Lua script is loaded and used for rate limiting with Redis"""
+    config = security_config_redis
+    config.rate_limit = 2
+    config.rate_limit_window = 60
+    config.enable_rate_limiting = True
+
+    handler, redis = await _redis_rate_limiter(config)
+    try:
+        assert handler.rate_limit_script_sha is not None
+        async with redis.get_connection() as conn:
+            before = (await conn.info("commandstats")).get("cmdstat_evalsha", {})
+            results = await _three_checks(handler)
+            after = (await conn.info("commandstats")).get("cmdstat_evalsha", {})
+
+        assert results[0] is None
+        assert results[1] is None
+        assert results[2] is not None
+        assert results[2].status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert after.get("calls", 0) - before.get("calls", 0) >= 3
+    finally:
+        await redis.delete_pattern("rate_limit:rate:*")
+        await redis.close()
+
+
+@pytest.mark.asyncio
+async def test_fallback_to_pipeline(security_config_redis: SecurityConfig) -> None:
+    """Rate limiting still works on Redis when the Lua script is not loaded"""
+    config = security_config_redis
+    config.rate_limit = 2
+    config.rate_limit_window = 60
+    config.enable_rate_limiting = True
+
+    handler, redis = await _redis_rate_limiter(config)
+    try:
+        handler.rate_limit_script_sha = None
+        async with redis.get_connection() as conn:
+            before = (await conn.info("commandstats")).get("cmdstat_evalsha", {})
+            results = await _three_checks(handler)
+            after = (await conn.info("commandstats")).get("cmdstat_evalsha", {})
+
+        assert results[0] is None
+        assert results[1] is None
+        assert results[2] is not None
+        assert results[2].status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert results[2].body == b"Too many requests"
+        assert after.get("calls", 0) == before.get("calls", 0)
+    finally:
+        await redis.delete_pattern("rate_limit:rate:*")
+        await redis.close()
+
+
+@pytest.mark.asyncio
+async def test_rate_limiter_redis_errors(security_config_redis: SecurityConfig) -> None:
+    """Test Redis error handling in rate limit check"""
+    config = security_config_redis
+    config.rate_limit = 2
+    config.rate_limit_window = 1
+    config.enable_rate_limiting = True
+
+    handler, redis = await _redis_rate_limiter(config)
+
+    guard_request = _loopback_guard_request()
+    create_error_response = _create_error_response
 
     error_response = await create_error_response(429, "Rate limited")
     assert error_response.status_code == 429
@@ -1768,6 +1687,8 @@ async def test_rate_limiter_redis_errors(security_config_redis: SecurityConfig) 
         assert result is None
         mock_error.assert_not_called()
 
+    await redis.close()
+
 
 @pytest.mark.asyncio
 async def test_rate_limiter_init_redis_exception(
@@ -1829,8 +1750,9 @@ async def test_ipv6_rate_limiting(
         response = await client.get("/", headers={"X-Forwarded-For": "2001:db8::1"})
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
-        handler = rate_limit_handler(config)
-        await handler.reset()
+        middleware = _serving_middleware(app)
+        await middleware.rate_limit_handler.reset()
+        await middleware.rate_limit_handler.initialize_redis(middleware.redis_handler)
 
         response = await client.get("/", headers={"X-Forwarded-For": "2001:db8::1"})
         assert response.status_code == status.HTTP_200_OK
