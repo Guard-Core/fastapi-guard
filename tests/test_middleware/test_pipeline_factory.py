@@ -45,7 +45,8 @@ async def test_middleware_builds_pipeline_via_factory() -> None:
 
     assert middleware.security_pipeline is not None
     check_names = middleware.security_pipeline.get_check_names()
-    assert len(check_names) == 17
+    assert len(check_names) == 18
+    assert "cors_preflight" in check_names
     assert "ip_security" in check_names
     assert "rate_limit" in check_names
     assert "suspicious_activity" in check_names
