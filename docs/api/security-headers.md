@@ -67,6 +67,7 @@ security_headers_manager.configure(
     cors_allow_credentials=True,
     cors_allow_methods=["GET", "POST"],
     cors_allow_headers=["*"],
+    override_apps=True,  # also set these keys on every guarded app
 )
 ```
 
@@ -87,27 +88,31 @@ security_headers_manager.configure(
 - `cors_allow_credentials` (bool): Allow credentials in CORS. Default: `False`
 - `cors_allow_methods` (list[str] | None): Allowed CORS methods
 - `cors_allow_headers` (list[str] | None): Allowed CORS headers
+- `override_apps` (bool): `True` also sets the keys you pass on every guarded app in the process (see below). Default: `False`: only the manager's own headers change and no app is affected
 
 Global `configure()` and the override
 -------------------------------------
 
-`configure()` on the global manager sets exactly what you pass.
+`configure()` on the global manager sets exactly what you pass. **Without `override_apps=True` it changes only the manager's own headers and does not reach any guarded app.** The middleware itself calls it at startup with every key from its config, and that call changes nothing for the apps.
 
 - **The manager's own headers** keep the full replace: what the call does not pass is absent on the manager.
-- **Every guarded app**: the keys you pass override the `security_headers` config of every guarded app in the process from the next response on, for paths already served and for paths never served. Keys you do not pass are not overridden, each app keeps its own value for them. `None` switches that header off for every app, `enabled=False` switches every app off, `hsts_max_age`, `hsts_include_subdomains` and `hsts_preload` merge over each app's `hsts` one by one, and an app whose own `security_headers` is off stays off.
-- **A bare `configure()`** clears the manager and the override. `await security_headers_manager.reset()` clears them too, in the process and in Redis.
-- **Never silent**: every call that changes the override logs one line and sends the security headers event. A call that drops keys from an active override (a bare call included) logs a WARNING that names the dropped keys, and the event lists them. Header values in the log line and the event are redacted (a custom `X-Auth-Token` value never appears).
-- **Opt-in**: without a call there is no override, and the guarded apps of a process behave as before.
+- **Every guarded app** (only with `override_apps=True`): the keys you pass override the `security_headers` config of every guarded app in the process from the next response on, for paths already served and for paths never served. Keys you do not pass are not overridden, each app keeps its own value for them. `None` switches that header off for every app, `hsts_max_age`, `hsts_include_subdomains` and `hsts_preload` merge over each app's `hsts` one by one, and a passed `enabled` wins in both directions (`enabled=True` switches on an app whose own `security_headers` is off, `enabled=False` switches every app off).
+- **Clearing**: `configure(override_apps=True)` with nothing else clears the override. `await security_headers_manager.reset()` clears the manager and the override, in the process and in Redis. Writing `security_headers_manager.enabled` is never an override.
+- **Never silent**: every call with the flag that changes the override logs one line and sends the security headers event. A call that drops keys from an active override (a clearing call included) logs a WARNING that names the dropped keys, and the event lists them. Header values in the log line and the event are redacted (a custom `X-Auth-Token` value never appears).
 
 ```python
 from guard import security_headers_manager
 
-security_headers_manager.configure(csp={"default-src": ["'self'", "https://cdn.example"]})  # every app: this CSP
-security_headers_manager.configure(frame_options="DENY")  # drops csp from the override: WARNING, apps use their own CSP again
+security_headers_manager.configure(
+    csp={"default-src": ["'self'", "https://cdn.example"]},
+    override_apps=True,
+)  # every app: this CSP
+security_headers_manager.configure(frame_options="DENY", override_apps=True)  # drops csp from the override: WARNING, apps use their own CSP again
+security_headers_manager.configure(csp={"default-src": ["'none'"]})  # no flag: the manager only, no app changes
 await security_headers_manager.reset()  # clears the override
 ```
 
-With Redis on, each app saves the override with no TTL under `{redis_prefix}security_headers:override:{hash}`, where `hash` is the hash of the startup config the app runs, and each worker pulls it at most once every 5 seconds, so a call in one worker reaches the others within about 5 seconds. A worker started with another config ignores it, and a Redis error keeps the last applied override. Two services that share a `redis_prefix` and run an identical config share the override: give each service its own prefix.
+With Redis on, each app saves the override with no TTL under `{redis_prefix}security_headers:override:{hash}`, where `hash` is the hash of the startup config the app runs, and each worker pulls it at most once every 5 seconds, so a call in one worker reaches the others within about 5 seconds. A worker started with another config ignores it, and a Redis error keeps the last applied override (retried after 5 seconds, whatever `redis_fail_open` says). Two services that share a `redis_prefix` and run an identical config share the override: give each service its own prefix.
 
 get_headers
 -----------
