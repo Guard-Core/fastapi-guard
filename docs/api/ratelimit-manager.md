@@ -83,12 +83,13 @@ ___
 Direct Access
 -------------
 
-You can also access the handler directly if needed:
+You can also access the handler directly if needed. Pass the same config object the guarded app was built with: managers built from the same config object share one state (windows, Redis and agent handlers), so `reset()` reaches what the app counts. A different config object, even an equal one or a `model_copy()`, has its own state, and `reset()` on a state no guarded app was built with logs a warning and clears nothing the app uses.
 
 ```python
 from guard import rate_limit_handler
 
-# Get the singleton instance
+# Pass the config object the app was built with: managers built from the
+# same config object share one state, so this reaches the app's limiter
 handler = rate_limit_handler(config)
 
 # Reset all rate limits
