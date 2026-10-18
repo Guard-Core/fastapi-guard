@@ -83,7 +83,7 @@ ___
 Direct Access
 -------------
 
-You can also access the handler directly if needed. Pass the same config object the guarded app was built with: managers built from the same config object share one state (windows, Redis and agent handlers), so `reset()` reaches what the app counts. A different config object, even an equal one or a `model_copy()`, has its own state, and `reset()` on a state no guarded app was built with logs a warning and clears nothing the app uses.
+You can also access the handler directly if needed. Pass the same config object the guarded app was built with: managers built from the same config object share one state (windows, Redis and agent handlers), so `reset()` reaches what the app counts. A different config object, even an equal one or a `model_copy()`, has its own state, and `reset()` on a state no guarded app was built with logs a warning and clears nothing the app uses. `reset()` clears the request windows only (the in-memory windows and the Redis `rate_limit:rate:*` keys): it does not clear auto-ban strikes or active bans, and the limiter keeps its Redis and agent handlers attached. To tear a limiter down, build a new config object or re-initialize the app; `reset()` is not a teardown.
 
 ```python
 from guard import rate_limit_handler
