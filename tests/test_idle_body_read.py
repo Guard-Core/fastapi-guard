@@ -248,6 +248,10 @@ def _route_app(config: SecurityConfig) -> FastAPI:
     async def files(name: str) -> dict[str, str]:
         return {"name": name}
 
+    @app.get("/{language}/news")
+    async def news(language: str) -> dict[str, str]:
+        return {"language": language}
+
     app.add_middleware(SecurityMiddleware, config=config)
     return app
 
@@ -260,6 +264,7 @@ def _route_app(config: SecurityConfig) -> FastAPI:
         ("/files/shop/cart.php", 400),
         ("/missing/cart.php", 400),
         ("/shop/other.php", 400),
+        ("/language/news", 400),
     ],
 )
 async def test_a_script_path_is_clean_only_when_the_app_declares_it(
