@@ -1,4 +1,5 @@
 import asyncio
+import stat
 import time
 from collections.abc import Awaitable, Callable, Iterator
 from typing import TYPE_CHECKING, Any, cast
@@ -31,6 +32,7 @@ from guard_core.utils import (
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 from starlette.routing import Match, Mount, get_route_path
+from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp
 
 from guard._response_headers import merge_vary
@@ -43,6 +45,14 @@ from guard.adapters import (
 
 if TYPE_CHECKING:
     from guard._middleware_state import MiddlewareState
+
+
+def _static_file_is_served(static_files: StaticFiles, scope: Any) -> bool:
+    try:
+        _, file_stat = static_files.lookup_path(static_files.get_path(scope))
+    except ValueError:
+        return False
+    return file_stat is not None and stat.S_ISREG(file_stat.st_mode)
 
 
 _FULL = (Match.FULL,)
@@ -399,6 +409,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     def _matching_routes(
         self, scope: Any, accepted: tuple[Match, ...]
     ) -> Iterator[tuple[Any, dict[str, Any]]]:
+        for route, params, _ in self._matching_routes_in_scope(scope, accepted):
+            yield route, params
+
+    def _matching_routes_in_scope(
+        self, scope: Any, accepted: tuple[Match, ...]
+    ) -> Iterator[tuple[Any, dict[str, Any], dict[str, Any]]]:
         app = scope.get("app")
         routes = getattr(app, "routes", None)
         if not routes:
@@ -415,7 +431,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         seen: set[Any],
         redirect_slashes: bool,
         accepted: tuple[Match, ...],
-    ) -> Iterator[tuple[Any, dict[str, Any]]]:
+    ) -> Iterator[tuple[Any, dict[str, Any], dict[str, Any]]]:
         # Starlette's router answers a path none of its routes match with a 307 to the
         # same path with the trailing slash toggled, when a route matches there, so that
         # route's decorator config is the one that governs this request. Each router
@@ -438,14 +454,15 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
     def _match_route(
         self, routes: Any, scope: Any, seen: set[Any], accepted: tuple[Match, ...]
-    ) -> Iterator[tuple[Any, dict[str, Any]]]:
+    ) -> Iterator[tuple[Any, dict[str, Any], dict[str, Any]]]:
         # This middleware is a BaseHTTPMiddleware, so it runs before the router
         # and scope["route"] is unset. Replicate Starlette's matching, descending
         # into sub-routers / mounts (FastAPI's include_router inserts a wrapper
         # route whose real routes are nested inside), so per-route decorator
         # config resolves for path-parameter and include_router routes, not only
-        # routes flattened directly onto the app. Each hit is the route plus the
-        # path parameters Starlette captured on the way down.
+        # routes flattened directly onto the app. Each hit is the route, the path
+        # parameters Starlette captured on the way down and the scope the route
+        # was matched with (its root_path tells a static mount where it starts).
         if not self._first_visit(seen, routes, scope):
             return
         for r in routes:
@@ -454,15 +471,15 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 continue
             r = self._unwrap_candidate(r)
             params = child.get("path_params", {})
-            if getattr(r, "endpoint", None) is not None:
-                yield r, params
-                continue
             child_scope = {**scope, **child}
+            if getattr(r, "endpoint", None) is not None:
+                yield r, params, child_scope
+                continue
             if not self._first_visit(seen, r, child_scope):
                 continue
             sub_routes = self._sub_routes(r)
             if not sub_routes:
-                yield r, params
+                yield r, params, child_scope
             else:
                 # A Mount with middleware keeps the mounted app, whose routes these
                 # are, in _base_app and the middleware-wrapped one in app.
@@ -565,6 +582,18 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             "headers": [],
             "app": self._routing_app,
         }
+
+    async def static_file_exists(self, path: str) -> bool:
+        scope = self._path_scope(path)
+        route, _, matched_scope = next(
+            self._matching_routes_in_scope(scope, _FULL), (None, {}, {})
+        )
+        static_files = getattr(route, "_base_app", getattr(route, "app", None))
+        if not isinstance(route, Mount) or not isinstance(static_files, StaticFiles):
+            return False
+        return await asyncio.to_thread(
+            _static_file_is_served, static_files, matched_scope
+        )
 
     def resolve_route(
         self, path: str
