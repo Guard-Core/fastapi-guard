@@ -349,8 +349,10 @@ def test_ws_close_reasons_pins_the_exact_code_reason_pair_set() -> None:
         WebSocketCloseReason(1008, "Client address could not be determined"),
         WebSocketCloseReason(1013, "Security check failed"),
         WebSocketCloseReason(1008, "Suspicious activity detected"),
+        WebSocketCloseReason(1013, "Service temporarily unavailable"),
+        WebSocketCloseReason(1008, "User agent not allowed"),
     }
-    assert len(WS_CLOSE_REASONS) == 6
+    assert len(WS_CLOSE_REASONS) == 8
 
 
 def test_guard_websocket_skips_rate_limit_when_client_is_whitelisted() -> None:

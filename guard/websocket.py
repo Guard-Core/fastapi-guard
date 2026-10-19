@@ -3,9 +3,12 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from typing import Any, NamedTuple, cast
 
 from guard_core import check_rate_limit_by_ip, ip_ban_manager, is_ip_allowed
+from guard_core.core.checks.base import SecurityCheck
+from guard_core.core.checks.implementations.emergency_mode import EmergencyModeCheck
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
+from guard_core.core.checks.implementations.user_agent import UserAgentCheck
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.events import SecurityEventBus
 from guard_core.core.routing import RouteConfigResolver, RoutingContext
@@ -15,7 +18,7 @@ from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
-from guard_core.utils import UNKNOWN_CLIENT_IDENTITY, extract_client_ip
+from guard_core.utils import UNKNOWN_CLIENT_IDENTITY, extract_client_ip, log_activity
 from starlette import status
 from starlette.exceptions import WebSocketException
 from starlette.routing import get_route_path
@@ -51,6 +54,13 @@ WS_CLOSE_SUSPICIOUS_ACTIVITY = WebSocketCloseReason(
     status.WS_1008_POLICY_VIOLATION, "Suspicious activity detected"
 )
 
+WS_CLOSE_EMERGENCY_MODE = WebSocketCloseReason(
+    status.WS_1013_TRY_AGAIN_LATER, "Service temporarily unavailable"
+)
+WS_CLOSE_USER_AGENT_NOT_ALLOWED = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "User agent not allowed"
+)
+
 _DETECTION_CHECK_FAILED_STATUS_CODE = 500
 
 WS_CLOSE_REASONS: tuple[WebSocketCloseReason, ...] = (
@@ -60,6 +70,8 @@ WS_CLOSE_REASONS: tuple[WebSocketCloseReason, ...] = (
     WS_CLOSE_CLIENT_ADDRESS_UNKNOWN,
     WS_CLOSE_SECURITY_CHECK_FAILED,
     WS_CLOSE_SUSPICIOUS_ACTIVITY,
+    WS_CLOSE_EMERGENCY_MODE,
+    WS_CLOSE_USER_AGENT_NOT_ALLOWED,
 )
 
 
@@ -182,6 +194,14 @@ def _resolve_shared_suspicious_counts(
     return None
 
 
+async def _mark_exclusion_scope(
+    guard_request: GuardRequest, config: SecurityConfig
+) -> None:
+    detection_middleware = _get_ws_detection_middleware(config)
+    if await detection_middleware.validator.is_path_excluded(guard_request):
+        guard_request.state.guard_exclusion_scoped = True
+
+
 async def _run_penetration_detection(
     guard_request: GuardRequest,
     config: SecurityConfig,
@@ -192,8 +212,7 @@ async def _run_penetration_detection(
         shared_counts = _resolve_shared_suspicious_counts(app, config)
         if shared_counts is not None:
             detection_middleware.suspicious_request_counts = shared_counts
-    if await detection_middleware.validator.is_path_excluded(guard_request):
-        guard_request.state.guard_exclusion_scoped = True
+    await _mark_exclusion_scope(guard_request, config)
     pipeline = SecurityCheckPipeline(
         [SuspiciousActivityCheck(detection_middleware)],
         config.muted_check_logs,
@@ -239,6 +258,116 @@ async def _guarded_redis_call(
         return default
 
 
+def _close_for_check_response(
+    response: GuardResponse, denial: WebSocketCloseReason
+) -> WebSocketCloseReason:
+    if response.status_code == _DETECTION_CHECK_FAILED_STATUS_CODE:
+        return WS_CLOSE_SECURITY_CHECK_FAILED
+    return denial
+
+
+async def _run_handshake_check(
+    guard_request: GuardRequest,
+    config: SecurityConfig,
+    check_class: type[SecurityCheck],
+    denial: WebSocketCloseReason,
+) -> None:
+    middleware = _get_ws_detection_middleware(config)
+    pipeline = SecurityCheckPipeline(
+        [check_class(middleware)],
+        config.muted_check_logs,
+    )
+    response = await pipeline.execute(guard_request)
+    if response is not None:
+        close = _close_for_check_response(response, denial)
+        raise WebSocketException(code=close.code, reason=close.reason)
+
+
+async def _deny_handshake(
+    guard_request: GuardRequest,
+    config: SecurityConfig,
+    close: WebSocketCloseReason,
+    check_name: str,
+    reason: str,
+) -> None:
+    if not config.passive_mode:
+        raise WebSocketException(code=close.code, reason=close.reason)
+    await log_activity(
+        guard_request,
+        logger,
+        log_type="suspicious",
+        reason=reason,
+        level=config.log_suspicious_level,
+        passive_mode=True,
+        check_name=check_name,
+        muted_check_logs=config.muted_check_logs,
+        on_block=config.on_block,
+        sensitive_headers=config.log_sensitive_headers,
+        sensitive_params=config.log_sensitive_params,
+        sensitive_body_fields=config.log_sensitive_body_fields,
+    )
+
+
+async def _check_ban(
+    guard_request: GuardRequest, config: SecurityConfig, client_ip: str
+) -> None:
+    is_banned = await _guarded_redis_call(
+        ip_ban_manager.is_ip_banned(client_ip),
+        config,
+        "ip_ban_manager.is_ip_banned",
+        default=False,
+    )
+    if is_banned:
+        await _deny_handshake(
+            guard_request,
+            config,
+            WS_CLOSE_IP_BANNED,
+            "ip_security",
+            f"Banned IP attempted access: {client_ip}",
+        )
+
+
+async def _check_ip_allowed(
+    guard_request: GuardRequest, config: SecurityConfig, client_ip: str
+) -> None:
+    if not await is_ip_allowed(client_ip, config, config.geo_ip_handler):
+        await _deny_handshake(
+            guard_request,
+            config,
+            WS_CLOSE_IP_NOT_ALLOWED,
+            "ip_security",
+            f"IP not allowed: {client_ip}",
+        )
+
+
+async def _check_handshake_rate_limit(
+    guard_request: GuardRequest,
+    config: SecurityConfig,
+    redis_handler: RedisManager | None,
+    client_ip: str,
+) -> None:
+    allowed = await _guarded_redis_call(
+        check_rate_limit_by_ip(
+            client_ip, config, redis_handler=redis_handler, endpoint_path="ws"
+        ),
+        config,
+        "check_rate_limit_by_ip",
+        default=True,
+    )
+    if not allowed:
+        await _deny_handshake(
+            guard_request,
+            config,
+            WS_CLOSE_RATE_LIMIT_EXCEEDED,
+            "rate_limit",
+            f"Rate limit exceeded for IP: {client_ip}",
+        )
+
+
+def _user_agent_check_applies(config: SecurityConfig) -> bool:
+    return bool(config.blocked_user_agents) or config.block_empty_user_agent
+
+
 async def _run_websocket_checks(
     websocket: WebSocket,
     config: SecurityConfig,
@@ -255,21 +384,13 @@ async def _run_websocket_checks(
             reason=WS_CLOSE_CLIENT_ADDRESS_UNKNOWN.reason,
         )
 
-    is_banned = await _guarded_redis_call(
-        ip_ban_manager.is_ip_banned(client_ip),
-        config,
-        "ip_ban_manager.is_ip_banned",
-        default=False,
-    )
-    if is_banned:
-        raise WebSocketException(
-            code=WS_CLOSE_IP_BANNED.code, reason=WS_CLOSE_IP_BANNED.reason
+    if config.emergency_mode:
+        await _run_handshake_check(
+            guard_request, config, EmergencyModeCheck, WS_CLOSE_EMERGENCY_MODE
         )
 
-    if not await is_ip_allowed(client_ip, config, config.geo_ip_handler):
-        raise WebSocketException(
-            code=WS_CLOSE_IP_NOT_ALLOWED.code, reason=WS_CLOSE_IP_NOT_ALLOWED.reason
-        )
+    await _check_ban(guard_request, config, client_ip)
+    await _check_ip_allowed(guard_request, config, client_ip)
 
     whitelist_skips_checks = bool(config.whitelist) and not getattr(
         config, "whitelist_access_only", False
@@ -277,20 +398,16 @@ async def _run_websocket_checks(
     is_whitelisted = client_ip != UNKNOWN_CLIENT_IDENTITY and whitelist_skips_checks
     websocket.state.is_whitelisted = is_whitelisted
 
-    if client_ip != UNKNOWN_CLIENT_IDENTITY and not whitelist_skips_checks:
-        allowed = await _guarded_redis_call(
-            check_rate_limit_by_ip(
-                client_ip, config, redis_handler=redis_handler, endpoint_path="ws"
-            ),
-            config,
-            "check_rate_limit_by_ip",
-            default=True,
+    if _user_agent_check_applies(config):
+        await _mark_exclusion_scope(guard_request, config)
+        await _run_handshake_check(
+            guard_request, config, UserAgentCheck, WS_CLOSE_USER_AGENT_NOT_ALLOWED
         )
-        if not allowed:
-            raise WebSocketException(
-                code=WS_CLOSE_RATE_LIMIT_EXCEEDED.code,
-                reason=WS_CLOSE_RATE_LIMIT_EXCEEDED.reason,
-            )
+
+    if client_ip != UNKNOWN_CLIENT_IDENTITY and not whitelist_skips_checks:
+        await _check_handshake_rate_limit(
+            guard_request, config, redis_handler, client_ip
+        )
 
     await _run_penetration_detection(guard_request, config, app)
 

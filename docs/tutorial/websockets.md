@@ -42,12 +42,16 @@ async def websocket_endpoint(
 
 `guard_websocket` runs before the route function, using the same `SecurityConfig` passed to `app.add_middleware(SecurityMiddleware, config=...)`. In order, it checks:
 
-1. `ip_ban_manager.is_ip_banned` -- is the resolved client IP currently banned.
-2. `is_ip_allowed` -- whitelist/blacklist, blocked countries, blocked cloud providers.
-3. `check_rate_limit_by_ip` -- a rate-limit bucket isolated from the HTTP pipeline's own bucket for the same IP (keyed by `endpoint_path="ws"`), Redis-backed when `enable_redis=True`, in-memory otherwise.
-4. Penetration detection -- the handshake's headers, cookies, query string and path are scanned by guard-core's `SuspiciousActivityCheck`, the same detection guard-core's HTTP pipeline runs on a request, honouring `enable_penetration_detection`, `passive_mode`, `exclude_paths` and the whitelist and auto-ban rules above; there is no body to scan on a handshake.
+1. Emergency mode -- guard-core's `EmergencyModeCheck`, the same check the HTTP pipeline runs: while `emergency_mode` is on, a client outside the emergency whitelist is refused on every path, `exclude_paths` entries included, except the paths in `emergency_exempt_paths`.
+2. `ip_ban_manager.is_ip_banned` -- is the resolved client IP currently banned.
+3. `is_ip_allowed` -- whitelist/blacklist, blocked countries, blocked cloud providers.
+4. User agent -- guard-core's `UserAgentCheck`, the same check the HTTP pipeline runs: `blocked_user_agents` and `block_empty_user_agent`, skipped for a whitelisted client and for an `exclude_paths` entry.
+5. `check_rate_limit_by_ip` -- a rate-limit bucket isolated from the HTTP pipeline's own bucket for the same IP (keyed by `endpoint_path="ws"`), Redis-backed when `enable_redis=True`, in-memory otherwise.
+6. Penetration detection -- the handshake's headers, cookies, query string and path are scanned by guard-core's `SuspiciousActivityCheck`, the same detection guard-core's HTTP pipeline runs on a request, honouring `enable_penetration_detection`, `passive_mode`, `exclude_paths` and the whitelist and auto-ban rules above; there is no body to scan on a handshake.
 
-On the first failing check, the connection is closed with WebSocket close code `1008` (Policy Violation) before `accept()` is ever called; the client sees the handshake rejected, not an accepted-then-closed connection.
+On the first failing check, the connection is closed with WebSocket close code `1008` (Policy Violation), or `1013` (Try Again Later) for emergency mode, before `accept()` is ever called; the client sees the handshake rejected, not an accepted-then-closed connection.
+
+With `passive_mode=True` no check refuses a handshake, exactly as no check refuses an HTTP request: each one that would have refused logs the same `[PASSIVE MODE]` line the HTTP pipeline logs, runs the `on_block` hook, and the handshake is accepted.
 
 If Redis is unreachable while `ip_ban_manager.is_ip_banned` or `check_rate_limit_by_ip` runs, `guard_websocket` follows the same `redis_fail_open` and `fail_secure` rules as the HTTP pipeline: `redis_fail_open=True` skips the failing check and treats it as passed; otherwise `fail_secure=True` (the default) refuses the handshake with close code `1013` (Try Again Later); otherwise the check is skipped and the error is logged.
 
@@ -123,17 +127,19 @@ Close Code Contract
 ```python
 from guard import (
     WS_CLOSE_CLIENT_ADDRESS_UNKNOWN,
+    WS_CLOSE_EMERGENCY_MODE,
     WS_CLOSE_IP_BANNED,
     WS_CLOSE_IP_NOT_ALLOWED,
     WS_CLOSE_RATE_LIMIT_EXCEEDED,
     WS_CLOSE_REASONS,
     WS_CLOSE_SECURITY_CHECK_FAILED,
     WS_CLOSE_SUSPICIOUS_ACTIVITY,
+    WS_CLOSE_USER_AGENT_NOT_ALLOWED,
     WebSocketCloseReason,
 )
 ```
 
-Each constant is a `WebSocketCloseReason(code, reason)` named tuple; `WS_CLOSE_REASONS` collects all six.
+Each constant is a `WebSocketCloseReason(code, reason)` named tuple; `WS_CLOSE_REASONS` collects all eight.
 
 | Code | Reason                                    | Cause                                                     |
 | ---- | ------------------------------------------ | ---------------------------------------------------------- |
@@ -141,8 +147,10 @@ Each constant is a `WebSocketCloseReason(code, reason)` named tuple; `WS_CLOSE_R
 | 1008 | `IP not allowed`                           | `is_ip_allowed` returned `False` (whitelist/blacklist, blocked country, blocked cloud provider). |
 | 1008 | `Rate limit exceeded`                      | `check_rate_limit_by_ip` returned `False`.                  |
 | 1008 | `Client address could not be determined`   | No resolvable client identity and `fail_secure=True`.       |
-| 1013 | `Security check failed`                    | A Redis error during the ban or rate-limit check, or during detection, with `redis_fail_open=False` and `fail_secure=True`. |
+| 1013 | `Security check failed`                    | A Redis error during the ban or rate-limit check, or during detection, with `redis_fail_open=False` and `fail_secure=True`; also an exception inside the emergency-mode or user-agent check under `fail_secure=True`. |
 | 1008 | `Suspicious activity detected`             | guard-core's `SuspiciousActivityCheck` flagged the handshake in active mode (`passive_mode=False`). |
+| 1013 | `Service temporarily unavailable`          | `emergency_mode` is on and the client is outside the emergency whitelist, on a path not in `emergency_exempt_paths`. |
+| 1008 | `User agent not allowed`                   | The `User-Agent` matched `blocked_user_agents`, or was empty with `block_empty_user_agent=True`. |
 
 Every close in this table happens before `accept()`, so the `reason` string reaches the server's own logs only, not the browser: uvicorn answers a pre-accept close with plain HTTP `403` and discards the WebSocket close code and reason entirely (uvicorn's `websockets_impl.py:296-303`), so the client sees a failed upgrade with status `403`, never the `(code, reason)` pair. Read the pair in the application's own logging, for example a handler around `WebSocketException`, not on the client.
 

@@ -35,12 +35,14 @@ from guard.asgi import PureASGISecurityMiddleware as PureASGISecurityMiddleware
 from guard.middleware import SecurityMiddleware as SecurityMiddleware
 from guard.websocket import (
     WS_CLOSE_CLIENT_ADDRESS_UNKNOWN as WS_CLOSE_CLIENT_ADDRESS_UNKNOWN,
+    WS_CLOSE_EMERGENCY_MODE as WS_CLOSE_EMERGENCY_MODE,
     WS_CLOSE_IP_BANNED as WS_CLOSE_IP_BANNED,
     WS_CLOSE_IP_NOT_ALLOWED as WS_CLOSE_IP_NOT_ALLOWED,
     WS_CLOSE_RATE_LIMIT_EXCEEDED as WS_CLOSE_RATE_LIMIT_EXCEEDED,
     WS_CLOSE_REASONS as WS_CLOSE_REASONS,
     WS_CLOSE_SECURITY_CHECK_FAILED as WS_CLOSE_SECURITY_CHECK_FAILED,
     WS_CLOSE_SUSPICIOUS_ACTIVITY as WS_CLOSE_SUSPICIOUS_ACTIVITY,
+    WS_CLOSE_USER_AGENT_NOT_ALLOWED as WS_CLOSE_USER_AGENT_NOT_ALLOWED,
     WebSocketCloseReason as WebSocketCloseReason,
     guard_websocket as guard_websocket,
     make_guard_websocket as make_guard_websocket,
@@ -65,5 +67,7 @@ __all__ = [
     "WS_CLOSE_CLIENT_ADDRESS_UNKNOWN",
     "WS_CLOSE_SECURITY_CHECK_FAILED",
     "WS_CLOSE_SUSPICIOUS_ACTIVITY",
+    "WS_CLOSE_EMERGENCY_MODE",
+    "WS_CLOSE_USER_AGENT_NOT_ALLOWED",
     *guard_core.__all__,
 ]

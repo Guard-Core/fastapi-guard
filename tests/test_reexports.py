@@ -27,6 +27,8 @@ def test_all_derives_from_guard_core_exports() -> None:
         "WS_CLOSE_CLIENT_ADDRESS_UNKNOWN",
         "WS_CLOSE_SECURITY_CHECK_FAILED",
         "WS_CLOSE_SUSPICIOUS_ACTIVITY",
+        "WS_CLOSE_EMERGENCY_MODE",
+        "WS_CLOSE_USER_AGENT_NOT_ALLOWED",
         *guard_core.__all__,
     }
 
