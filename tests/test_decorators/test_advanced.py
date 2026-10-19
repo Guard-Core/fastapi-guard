@@ -295,6 +295,7 @@ async def test_honeypot_form_detection(security_config: SecurityConfig) -> None:
         "content-length": str(len(form_body)),
     }.get(key, default)
     mock_request.body.return_value = form_body
+    mock_request.read_body_prefix_until_idle.return_value = form_body
 
     result = await validator(mock_request)
     assert result.status_code == 403
@@ -350,6 +351,7 @@ async def test_honeypot_json_detection(security_config: SecurityConfig) -> None:
         "content-length": str(len(json_body)),
     }.get(key, default)
     mock_request.body.return_value = json_body
+    mock_request.read_body_prefix_until_idle.return_value = json_body
 
     result = await validator(mock_request)
     assert result.status_code == 403

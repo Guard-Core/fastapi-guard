@@ -541,6 +541,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             guard_request.state.guard_route_unresolved = True
             return
 
+        template = getattr(route, "path", None)
+        if isinstance(template, str):
+            guard_request.state.guard_route_template = template
+
         ep = getattr(route, "endpoint", None)
         if ep is None:
             return

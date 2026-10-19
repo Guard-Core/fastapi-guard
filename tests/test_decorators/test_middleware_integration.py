@@ -31,6 +31,10 @@ def _http_scope(
     }
 
 
+async def _empty_body_receive() -> dict:
+    return {"type": "http.request", "body": b"", "more_body": False}
+
+
 async def test_set_decorator_handler() -> None:
     app = FastAPI()
     config = SecurityConfig()
@@ -535,7 +539,9 @@ async def test_route_specific_middleware_validations(
         if attr != "headers":
             setattr(mock_route_config, attr, value)
 
-    mock_request = Request(_http_scope(headers=test_case["headers"].raw))
+    mock_request = Request(
+        _http_scope(headers=test_case["headers"].raw), _empty_body_receive
+    )
     mock_request.state.client_ip = "127.0.0.1"
 
     async def mock_call_next(request: Request) -> Response:

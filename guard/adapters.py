@@ -1,7 +1,9 @@
+import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, MutableMapping
 from functools import cached_property
 from typing import Any, cast
 
+from guard_core.exceptions import BodyReadStalledError
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from starlette.datastructures import Headers
@@ -73,6 +75,14 @@ class StarletteGuardRequest:
         return await self._request.body()
 
     async def read_body_prefix(self, max_bytes: int) -> bytes:
+        return await self._read_prefix(max_bytes, None)
+
+    async def read_body_prefix_until_idle(
+        self, max_bytes: int, idle_timeout: float
+    ) -> bytes:
+        return await self._read_prefix(max_bytes, idle_timeout)
+
+    async def _read_prefix(self, max_bytes: int, idle_timeout: float | None) -> bytes:
         if max_bytes <= 0:
             return b""
         cached = getattr(self._request, "_body", None)
@@ -83,10 +93,13 @@ class StarletteGuardRequest:
 
         original_receive = self._request._receive
         replay_buffer: list[Message] = []
+        in_flight: list[asyncio.Future[Message]] = []
 
         async def replaying_receive() -> Message:
             if replay_buffer:
                 return replay_buffer.pop(0)
+            if in_flight:
+                return await in_flight.pop()
             return await original_receive()
 
         self._request._receive = replaying_receive
@@ -94,7 +107,9 @@ class StarletteGuardRequest:
         collected: list[bytes] = []
         received = 0
         while received < max_bytes:
-            message = await original_receive()
+            message = await self._next_message(
+                original_receive, in_flight, idle_timeout
+            )
             replay_buffer.append(message)
             if message["type"] != "http.request":
                 break
@@ -105,6 +120,21 @@ class StarletteGuardRequest:
             if not message.get("more_body", False):
                 break
         return b"".join(collected)
+
+    @staticmethod
+    async def _next_message(
+        receive: Callable[[], Awaitable[Message]],
+        in_flight: list[asyncio.Future[Message]],
+        idle_timeout: float | None,
+    ) -> Message:
+        if idle_timeout is None:
+            return await receive()
+        pending = asyncio.ensure_future(receive())
+        done, _ = await asyncio.wait({pending}, timeout=idle_timeout)
+        if done:
+            return pending.result()
+        in_flight.append(pending)
+        raise BodyReadStalledError()
 
     @property
     def state(self) -> Any:
