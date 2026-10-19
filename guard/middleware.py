@@ -543,6 +543,13 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             or []
         )
 
+    def _record_route_template(
+        self, guard_request: StarletteGuardRequest, route: Any
+    ) -> None:
+        template = getattr(route, "path", None)
+        if isinstance(template, str):
+            guard_request.state.guard_route_template = template
+
     def _populate_guard_state(
         self, guard_request: StarletteGuardRequest, request: Request
     ) -> None:
@@ -558,9 +565,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             guard_request.state.guard_route_unresolved = True
             return
 
-        template = getattr(route, "path", None)
-        if isinstance(template, str):
-            guard_request.state.guard_route_template = template
+        self._record_route_template(guard_request, route)
 
         ep = getattr(route, "endpoint", None)
         if ep is None:
