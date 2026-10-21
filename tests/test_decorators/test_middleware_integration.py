@@ -595,20 +595,24 @@ async def test_route_specific_rate_limit_counts_apart_from_the_global_limit() ->
 async def test_decorator_usage_rules_wrapper_returns_the_throttle_response() -> None:
     app = FastAPI()
     middleware = SecurityMiddleware(app, config=SecurityConfig(enable_redis=False))
-    request = Mock()
-    request.method = "GET"
-    request.state.guard_decorator = None
-    request.state.guard_route_id = "test.throttled"
-    request.state.guard_exclusion_scoped = False
+
+    def throttled_request() -> Mock:
+        request = Mock()
+        request.method = "GET"
+        request.state.guard_decorator = None
+        request.state.guard_route_id = "test.throttled"
+        request.state.guard_exclusion_scoped = False
+        return request
+
     route_config = Mock()
     route_config.behavior_rules = [
         BehaviorRule("usage", threshold=1, window=60, action="throttle")
     ]
     first = await middleware._process_decorator_usage_rules(
-        request, "127.0.0.1", route_config
+        throttled_request(), "127.0.0.1", route_config
     )
     second = await middleware._process_decorator_usage_rules(
-        request, "127.0.0.1", route_config
+        throttled_request(), "127.0.0.1", route_config
     )
     assert first is None
     assert second is not None and second.status_code == 429
