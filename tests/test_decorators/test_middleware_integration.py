@@ -31,10 +31,6 @@ def _http_scope(
     }
 
 
-async def _empty_body_receive() -> dict:
-    return {"type": "http.request", "body": b"", "more_body": False}
-
-
 async def test_set_decorator_handler() -> None:
     app = FastAPI()
     config = SecurityConfig()
@@ -498,9 +494,18 @@ async def test_bypass_all_security_checks_with_custom_modifier() -> None:
             {
                 "allowed_content_types": ["application/json"],
                 "headers": Headers(raw=[(b"content-type", b"text/plain")]),
+                "body": b"plain text",
             },
             415,
             "Test route-specific content type filtering",
+        ),
+        (
+            {
+                "allowed_content_types": ["application/json"],
+                "headers": Headers(raw=[(b"content-type", b"text/plain")]),
+            },
+            200,
+            "Test a body-less request with any content type is not filtered",
         ),
         (
             {
@@ -536,12 +541,15 @@ async def test_route_specific_middleware_validations(
     mock_route_config = RouteConfig()
 
     for attr, value in test_case.items():
-        if attr != "headers":
+        if attr not in ("headers", "body"):
             setattr(mock_route_config, attr, value)
 
-    mock_request = Request(
-        _http_scope(headers=test_case["headers"].raw), _empty_body_receive
-    )
+    body = test_case.get("body", b"")
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    mock_request = Request(_http_scope(headers=test_case["headers"].raw), receive)
     mock_request.state.client_ip = "127.0.0.1"
 
     async def mock_call_next(request: Request) -> Response:
