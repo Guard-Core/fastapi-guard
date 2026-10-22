@@ -6,6 +6,7 @@ from guard_core.models import SecurityConfig
 
 from guard.lifespan import guard_lifespan
 from guard.middleware import SecurityMiddleware
+from tests.redis_isolation import REDIS_URL
 
 DEAD_REDIS_URL = "redis://127.0.0.1:6399"
 
@@ -44,7 +45,7 @@ def test_next_request_succeeds_once_redis_initialization_recovers(
         real_initialize = RedisManager.initialize
 
         async def _fake_initialize(self: RedisManager) -> None:
-            self.config.redis_url = "redis://localhost:6379"
+            self.config.redis_url = REDIS_URL
             await real_initialize(self)
 
         monkeypatch.setattr(RedisManager, "initialize", _fake_initialize)

@@ -1,8 +1,9 @@
 import importlib
 import os
 import sys
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -17,6 +18,16 @@ from pytest import TempPathFactory
 
 from guard._middleware_state import _STATE_REGISTRY, clear_state_registry
 from guard.middleware import SecurityMiddleware
+from tests.redis_isolation import (
+    REDIS_PREFIX,
+    REDIS_URL,
+    delete_every_key_under_the_suite_prefix,
+    point_security_config_defaults_at_the_test_redis,
+    refuse_connections_to_the_default_redis_port,
+    refused_connections,
+)
+
+point_security_config_defaults_at_the_test_redis()
 
 # CI on fork PRs cannot read secrets, so fall back to a dummy token: the suite
 # mocks all IPInfo HTTP traffic and IPInfoManager only requires a non-empty
@@ -56,8 +67,26 @@ async def _clear_middleware_state_registry() -> AsyncGenerator[None, None]:
     clear_state_registry()
 
 
-REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
-REDIS_PREFIX = os.getenv("REDIS_PREFIX") or "test:fastapi_guard:"
+@pytest.fixture(scope="session", autouse=True)
+def _refuse_the_default_redis_port() -> Generator[None, None, None]:
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        refuse_connections_to_the_default_redis_port(monkeypatch)
+        yield
+
+
+@pytest.fixture(autouse=True)
+def refused_redis_connections() -> Generator[list[tuple[Any, ...]], None, None]:
+    refused_connections.clear()
+    yield refused_connections
+    attempts = list(refused_connections)
+    refused_connections.clear()
+    assert not attempts, f"the test connected to port 6379: {attempts}"
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
+    terminalreporter.write_line(
+        f"redis isolation: REDIS_URL={REDIS_URL} REDIS_PREFIX={REDIS_PREFIX}"
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -168,18 +197,9 @@ def security_config_redis(ipinfo_db_path: Path) -> SecurityConfig:
 
 
 @pytest.fixture(autouse=True)
-async def redis_cleanup() -> None:
-    """Clean Redis test keys before each test"""
-    config = SecurityConfig(
-        redis_url=REDIS_URL,
-        redis_prefix=REDIS_PREFIX,
-    )
-    redis_handler = RedisManager(config)
-    await redis_handler.initialize()
-    try:
-        await redis_handler.delete_pattern(f"{REDIS_PREFIX}*")
-    finally:
-        await redis_handler.close()
+def redis_cleanup() -> None:
+    """Delete only the keys under this suite's own prefix before each test"""
+    delete_every_key_under_the_suite_prefix()
 
 
 @pytest.fixture(autouse=True)
@@ -200,14 +220,6 @@ async def reset_rate_limiter() -> AsyncGenerator[None, None]:
     await fresh_redis.initialize()
     rate_limit.redis_handler = fresh_redis
     rate_limit.rate_limit_script_sha = None
-
-    import redis.asyncio as redis_asyncio
-
-    client = redis_asyncio.from_url(REDIS_URL)
-    try:
-        await client.flushdb()
-    finally:
-        await client.aclose()
 
     yield
 
