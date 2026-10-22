@@ -616,3 +616,38 @@ async def test_decorator_usage_rules_wrapper_returns_the_throttle_response() -> 
     )
     assert first is None
     assert second is not None and second.status_code == 429
+
+
+async def test_second_usage_rules_call_on_one_request_records_nothing_more() -> None:
+    app = FastAPI()
+    middleware = SecurityMiddleware(app, config=SecurityConfig(enable_redis=False))
+    request = Mock()
+    request.method = "GET"
+    request.state.guard_decorator = None
+    request.state.guard_route_id = "test.stored"
+    request.state.guard_exclusion_scoped = False
+    route_config = Mock()
+    route_config.behavior_rules = [
+        BehaviorRule("usage", threshold=1, window=60, action="throttle")
+    ]
+    tracker = middleware.handler_initializer.behavior_tracker
+
+    def recorded_hits() -> int:
+        return sum(
+            len(timestamps)
+            for bucket in tracker.usage_counts.values()
+            for timestamps in bucket.values()
+        )
+
+    first = await middleware._process_decorator_usage_rules(
+        request, "127.0.0.1", route_config
+    )
+    hits_after_one_call = recorded_hits()
+    second = await middleware._process_decorator_usage_rules(
+        request, "127.0.0.1", route_config
+    )
+
+    assert hits_after_one_call == 1
+    assert recorded_hits() == hits_after_one_call
+    assert first is None
+    assert second is None
