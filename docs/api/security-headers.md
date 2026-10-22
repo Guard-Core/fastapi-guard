@@ -108,8 +108,12 @@ security_headers_manager.configure(
     csp={"default-src": ["'self'", "https://cdn.example"]},
     override_apps=True,
 )  # every app: this CSP
-security_headers_manager.configure(frame_options="DENY", override_apps=True)  # drops csp from the override: WARNING, apps use their own CSP again
-security_headers_manager.configure(csp={"default-src": ["'none'"]})  # no flag: the manager only, no app changes
+security_headers_manager.configure(
+    frame_options="DENY", override_apps=True
+)  # drops csp from the override: WARNING, apps use their own CSP again
+security_headers_manager.configure(
+    csp={"default-src": ["'none'"]}
+)  # no flag: the manager only, no app changes
 await security_headers_manager.reset()  # clears the override
 ```
 
