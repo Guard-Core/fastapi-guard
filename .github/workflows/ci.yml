@@ -148,9 +148,22 @@ jobs:
           # The reporter only reads the data files and the checked-out sources; it does not run the tests.
           python-version: '3.10'
 
-      - name: Install coverage
+      - name: Install uv
         run: |
-          pip install coverage
+          pip install uv
+
+      # The test jobs' own environment: its coverage version and the project's coverage configuration
+      # (plain coverage on 3.10 reads no pyproject.toml without the toml extra).
+      - name: Install dependencies
+        env:
+          UV_PYTHON: '3.10'
+          UV_PYTHON_DOWNLOADS: never
+        run: |
+          uv sync --extra dev
+
+      - name: Show the coverage configuration the combine reads
+        run: |
+          uv run --no-sync coverage debug config
 
       - name: Download every version's coverage data
         uses: actions/download-artifact@v8
@@ -167,5 +180,5 @@ jobs:
 
       - name: Combine and gate
         run: |
-          coverage combine coverage-data/coverage-py*.data
-          coverage report -m --fail-under=100
+          uv run --no-sync coverage combine coverage-data/coverage-py*.data
+          uv run --no-sync coverage report -m --fail-under=100
