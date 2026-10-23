@@ -15,6 +15,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -153,6 +155,79 @@ def first_fixed_version(vulns: list[dict[str, Any]]) -> str | None:
     return max(firsts, key=version_key)
 
 
+def cooldown_days(pyproject: Path) -> int | None:
+    match = re.search(
+        r'^exclude-newer\s*=\s*"(\d+) days?"', pyproject.read_text(), re.M
+    )
+    return int(match.group(1)) if match else None
+
+
+def upload_time(package: str, version: str) -> datetime | None:
+    """First upload time of a release on PyPI, None when it cannot be read."""
+    url = f"https://pypi.org/pypi/{package}/{version}/json"
+    try:
+        with urllib.request.urlopen(url, timeout=20) as response:
+            files = json.load(response)["urls"]
+    except (OSError, ValueError, KeyError):
+        return None
+    times = [f["upload_time_iso_8601"].replace("Z", "+00:00") for f in files]
+    return min(datetime.fromisoformat(t) for t in times) if times else None
+
+
+def regressions(
+    before: dict[str, set[str]], after: dict[str, set[str]], target: str
+) -> list[str]:
+    """Packages other than the target that a re-lock removed or moved down."""
+    found = []
+    for name, versions in sorted(before.items()):
+        if name == target:
+            continue
+        if name not in after:
+            found.append(f"{name} removed")
+        elif max(map(version_key, after[name])) < max(map(version_key, versions)):
+            old = max(versions, key=version_key)
+            new = max(after[name], key=version_key)
+            found.append(f"{name} {old} to {new}")
+    return found
+
+
+def try_fix(
+    scratch: Path, package: str, target: str, cooldown: int | None
+) -> str | None:
+    """Lock package==target in the scratch copy. None on success, else the reason."""
+    lock = scratch / "uv.lock"
+    previous = lock.read_text()
+    before = locked_versions(lock)
+    attempt = run(
+        ["uv", "lock", f"--upgrade-package={package}=={target}"], scratch, check=False
+    )
+    if attempt.returncode == 0:
+        moved = regressions(before, locked_versions(lock), package)
+        if not moved:
+            return None
+        lock.write_text(previous)
+        return (
+            f"locking {package}=={target} would move other packages down: "
+            + ", ".join(moved[:6])
+        )
+    released = upload_time(package, target)
+    if cooldown is not None and released is not None:
+        until = released + timedelta(days=cooldown)
+        if until > datetime.now(timezone.utc):
+            return (
+                f"{package}=={target} was released {released:%Y-%m-%d %H:%M} UTC, "
+                f"inside the {cooldown} day cooldown, "
+                f"lockable from {until:%Y-%m-%d %H:%M} UTC"
+            )
+    lines = attempt.stderr.strip().splitlines()
+    cause = next((line.strip() for line in lines if "No solution found" in line), "")
+    hint = next(
+        (line.strip() for line in lines if "exclude-newer" in line),
+        lines[-1] if lines else "",
+    )
+    return f"uv could not lock {package}=={target}: {cause} {hint}".strip()[:400]
+
+
 def decide(repo: Path, lock_out: Path | None) -> dict[str, Any]:
     first_party = first_party_names(repo / "pyproject.toml")
     with tempfile.TemporaryDirectory() as tmp:
@@ -161,6 +236,7 @@ def decide(repo: Path, lock_out: Path | None) -> dict[str, Any]:
         scratch.mkdir()
         copy_tracked_files(repo, scratch)
         committed = (repo / "uv.lock").read_text()
+        cooldown = cooldown_days(repo / "pyproject.toml")
         committed_vulns = audit(scratch, work)
 
         present = [
@@ -183,27 +259,11 @@ def decide(repo: Path, lock_out: Path | None) -> dict[str, Any]:
             target = first_fixed_version(vulns)
             reason = f"no published version above {installed} fixes it"
             if target is not None:
-                attempt = run(
-                    ["uv", "lock", f"--upgrade-package={package}=={target}"],
-                    scratch,
-                    check=False,
-                )
-                if attempt.returncode == 0:
+                failure = try_fix(scratch, package, target, cooldown)
+                if failure is None:
                     fixed.append({"package": package, "from": installed, "to": target})
                     continue
-                lines = attempt.stderr.strip().splitlines()
-                cause = next(
-                    (line.strip() for line in lines if "No solution found" in line), ""
-                )
-                hint = next(
-                    (line.strip() for line in lines if "exclude-newer" in line),
-                    lines[-1] if lines else "",
-                )
-                reason = (
-                    f"uv could not lock {package}=={target}: {cause} {hint}".strip()[
-                        :400
-                    ]
-                )
+                reason = failure
             issues.extend({**vuln, "reason": reason} for vuln in vulns)
 
         run(["uv", "lock", "--check"], scratch)

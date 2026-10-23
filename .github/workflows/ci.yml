@@ -54,6 +54,8 @@ jobs:
           git check-ignore -q uv.lock || rc=$?
           test "$rc" -eq 1
           uv lock --check
+      - name: Test the lock scripts
+        run: uv run --no-sync pytest .github/scripts/tests --no-cov -p no:cacheprovider
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy .
