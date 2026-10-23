@@ -26,11 +26,11 @@ jobs:
         id: set_version
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
-            echo "IS_RELEASE=true" >> $GITHUB_ENV
+            echo "VERSION=${{ github.event.release.tag_name }}" >> "$GITHUB_ENV"
+            echo "IS_RELEASE=true" >> "$GITHUB_ENV"
           else
-            echo "VERSION=latest" >> $GITHUB_ENV
-            echo "IS_RELEASE=false" >> $GITHUB_ENV
+            echo "VERSION=latest" >> "$GITHUB_ENV"
+            echo "IS_RELEASE=false" >> "$GITHUB_ENV"
           fi
 
       - name: Set up Python
@@ -65,11 +65,11 @@ jobs:
           IMAGE_NAME=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "fastapi-guard-example" | head -n 1)
           echo "Using image: ${IMAGE_NAME}"
 
-          docker tag ${IMAGE_NAME} ghcr.io/guard-core/fastapi-guard-example:latest
+          docker tag "${IMAGE_NAME}" ghcr.io/guard-core/fastapi-guard-example:latest
           docker push ghcr.io/guard-core/fastapi-guard-example:latest
 
           if [[ "${{ env.IS_RELEASE }}" == "true" ]]; then
-            docker tag ${IMAGE_NAME} ghcr.io/guard-core/fastapi-guard-example:${{ env.VERSION }}
+            docker tag "${IMAGE_NAME}" ghcr.io/guard-core/fastapi-guard-example:${{ env.VERSION }}
             docker push ghcr.io/guard-core/fastapi-guard-example:${{ env.VERSION }}
           fi
 

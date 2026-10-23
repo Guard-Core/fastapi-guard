@@ -42,11 +42,11 @@ jobs:
             echo "::error::Invalid version format in .mike.yml: $CURRENT_VERSION"
             exit 1
           fi
-          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
           if [[ -n "${{ secrets.DOCS_VERSION }}" ]]; then
             STORED_VERSION=${{ secrets.DOCS_VERSION }}
-            echo "STORED_VERSION=$STORED_VERSION" >> $GITHUB_ENV
+            echo "STORED_VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
           else
             echo "::error::DOCS_VERSION secret not found"
             exit 1
@@ -54,12 +54,12 @@ jobs:
 
           if [[ "$CURRENT_VERSION" != "$STORED_VERSION" ]]; then
             echo "::notice::Updating DOCS_VERSION from $STORED_VERSION to $CURRENT_VERSION"
-            echo "VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
-            echo "UPDATE_SECRET=true" >> $GITHUB_ENV
+            echo "VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
+            echo "UPDATE_SECRET=true" >> "$GITHUB_ENV"
           else
             echo "::notice::Versions match ($CURRENT_VERSION), no update needed"
-            echo "VERSION=$STORED_VERSION" >> $GITHUB_ENV
-            echo "UPDATE_SECRET=false" >> $GITHUB_ENV
+            echo "VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
+            echo "UPDATE_SECRET=false" >> "$GITHUB_ENV"
           fi
 
       - name: Update Docs Version Secret
