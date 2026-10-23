@@ -27,7 +27,6 @@ share/python-wheels/
 MANIFEST
 
 # Uv
-uv.lock
 .venv/
 
 # Unit test / coverage reports

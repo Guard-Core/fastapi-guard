@@ -73,17 +73,10 @@ dev = [
     "httpx",
     "httpx2",
     "matplotlib",
-    "mkdocs",
-    "mkdocstrings",
-    "mkdocstrings-python",
-    "mike",
-    "mkdocs-material",
     "mypy",
     "numpy",
     "pip-audit",
     "pre-commit",
-    "pymarkdownlnt",
-    "yq",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
@@ -95,6 +88,17 @@ dev = [
     "types-requests",
     "vulture",
     "xenon",
+]
+
+[dependency-groups]
+docs = [
+    "mike",
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings",
+    "mkdocstrings-python",
+    "pymarkdownlnt",
+    "yq",
 ]
 
 [build-system]
@@ -275,8 +279,11 @@ exclude = ["tests/*", ".venv/*", "vulture_whitelist.py"]
 ignore = []
 
 [tool.uv]
-# mkdocstrings 1.0.6 is the newest release for Python 3.10 and fails with pymdown-extensions 12 ("Highlight.__init__() missing 1 required positional argument: 'md'"); with pymdown-extensions 11 the strict docs build passes
-constraint-dependencies = ["pymdown-extensions<12"]
+exclude-newer = "7 days"
+
+[tool.uv.exclude-newer-package]
+guard-agent = "0 days"
+guard-core = "0 days"
 
 [tool.deptry]
 exclude = ["tests", ".venv", "vulture_whitelist.py", "examples", "docs", "manual_testing"]
