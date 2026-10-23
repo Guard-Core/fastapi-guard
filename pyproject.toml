@@ -55,11 +55,21 @@ Changelog = "https://github.com/Guard-Core/fastapi-guard/blob/master/CHANGELOG.m
 agent = [
     "guard-agent",
 ]
+redis = [
+    "guard-core[redis]",
+]
+geo = [
+    "guard-core[geo]",
+]
+cloud = [
+    "guard-core[cloud]",
+]
 dev = [
     "aiohttp",
     "bandit[toml]",
     "deptry",
     "guard-agent",
+    "guard-core[cloud,geo,redis]",
     "httpx",
     "httpx2",
     "matplotlib",
