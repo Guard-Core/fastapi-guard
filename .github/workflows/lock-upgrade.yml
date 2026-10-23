@@ -1,0 +1,74 @@
+name: Lock Upgrade
+
+on:
+  schedule:
+    - cron: '43 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Run make upgrade
+        run: make upgrade
+
+      - name: Check whether the lock moved
+        id: diff
+        run: |
+          if git diff --quiet -- uv.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: steps.diff.outputs.changed == 'true'
+        with:
+          name: upgraded-lock
+          path: uv.lock
+
+  refresh-pr:
+    needs: upgrade
+    if: needs.upgrade.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # One lock refresh at a time across the hourly and the daily workflow: a newer refresh cancels the running one.
+    concurrency:
+      group: lock-refresh-pr
+      cancel-in-progress: true
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: upgraded-lock
+
+      - name: Open or refresh the lock PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Daily make upgrade (D-157): third-party drift inside the 7 day release-age cooldown. Only uv.lock changes."
+            echo
+            echo "CI starts through a workflow_dispatch on this branch: events caused by GITHUB_TOKEN start no workflow runs."
+          } > pr-body.md
+          bash .github/scripts/lock_pr.sh chore/lock-refresh "build(deps): refresh uv.lock with make upgrade" pr-body.md

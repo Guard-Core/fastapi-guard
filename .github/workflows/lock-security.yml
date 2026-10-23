@@ -1,0 +1,100 @@
+name: Lock Security
+
+on:
+  schedule:
+    # Off-minute on purpose: the top of the hour is when scheduled runs queue up and get dropped.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      relock: ${{ steps.decision.outputs.relock }}
+      issues: ${{ steps.decision.outputs.issues }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Install the locked tools
+        run: |
+          pip install uv
+          uv sync --locked --python 3.14 --extra dev
+
+      - name: Audit the committed lock and decide
+        id: decision
+        run: |
+          uv run --no-sync python .github/scripts/lock_security.py --decision decision.json --lock-out uv.lock.new
+          {
+            echo "Hourly lock security run (D-157). Only uv.lock changes."
+            echo
+            jq -r '.fixed[] | "- \(.package) \(.from) to \(.to), the first version that fixes every advisory against it"' decision.json
+            jq -r 'if .first_party_changed then "- first-party releases inside the allowed range (" + (.first_party | join(", ")) + ")" else empty end' decision.json
+            echo
+            echo "CI starts through a workflow_dispatch on this branch: events caused by GITHUB_TOKEN start no workflow runs."
+          } > pr-body.md
+          echo "relock=$(jq -r '.relock' decision.json)" >> "$GITHUB_OUTPUT"
+          echo "issues=$(jq -r '.issues | length' decision.json)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lock-decision
+          path: |
+            decision.json
+            uv.lock.new
+            pr-body.md
+          if-no-files-found: ignore
+
+  refresh-pr:
+    needs: decide
+    if: needs.decide.outputs.relock == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # One lock refresh at a time across the hourly and the daily workflow: a newer refresh cancels the running one.
+    concurrency:
+      group: lock-refresh-pr
+      cancel-in-progress: true
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: lock-decision
+
+      - name: Open or refresh the lock PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mv uv.lock.new uv.lock
+          bash .github/scripts/lock_pr.sh chore/lock-refresh "build(deps): refresh uv.lock after the hourly security run" pr-body.md
+
+  open-issues:
+    needs: decide
+    if: needs.decide.outputs.issues != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: lock-decision
+
+      - name: Open or refresh one issue per advisory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/lock_issues.py decision.json
