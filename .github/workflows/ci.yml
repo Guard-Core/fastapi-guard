@@ -4,42 +4,54 @@ on:
   push:
     branches:
       - master
-    paths:
-      - 'compose.yml'
-      - 'data/**'
-      - 'Dockerfile'
-      - 'examples/**'
-      - 'guard/**'
-      - 'mypy.ini'
-      - '.github/**'
-      - '.pre-commit-config.yaml'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'pytest.ini'
-      - 'reqs.pip'
-      - 'tests/**'
   pull_request:
     branches:
       - master
-    paths:
-      - 'compose.yml'
-      - 'data/**'
-      - 'Dockerfile'
-      - 'examples/**'
-      - 'guard/**'
-      - 'mypy.ini'
-      - '.github/**'
-      - '.pre-commit-config.yaml'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'pytest.ini'
-      - 'reqs.pip'
-      - 'tests/**'
   workflow_dispatch:
   # release.yml calls this file so the release gate is the PR gate, never a copy of it.
   workflow_call:
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # pull_request checks out the merge commit; the second commit is the base (its first parent).
+          fetch-depth: 2
+
+      - name: Decide whether any code path changed
+        id: diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # On pull_request the checkout is the merge commit: HEAD^1 is the base, so a depth-1 clone cannot answer.
+          if ! files="$(git diff --name-only HEAD^1 HEAD)"; then
+            echo "::error::cannot diff HEAD^1 HEAD (shallow or non-merge checkout), refusing to guess"
+            exit 1
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            case "$f" in
+              docs/*|mkdocs.yml|context7.json|.github/ISSUE_TEMPLATE/*) ;;
+              */*) code=true; echo "code path: $f" ;;
+              *.md|LICENSE) ;;
+              *) code=true; echo "code path: $f" ;;
+            esac
+          done <<< "$files"
+          echo "changed files: $(printf '%s' "$files" | wc -l | tr -d ' ')"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
@@ -66,6 +78,8 @@ jobs:
 
   test:
     name: test (${{ matrix.python-version }}${{ matrix.informational && ', informational' || '' }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     continue-on-error: ${{ matrix.informational == true }}
     env:
       # uv follows .python-version (3.10) unless told otherwise, so the matrix CPython was set up and never used.
@@ -136,7 +150,8 @@ jobs:
 
   coverage:
     name: coverage (combined across the matrix)
-    needs: test
+    needs: [changes, test]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -182,3 +197,32 @@ jobs:
         run: |
           uv run --no-sync coverage combine coverage-data/coverage-py*.data
           uv run --no-sync coverage report -m --fail-under=100
+
+  ci:
+    name: ci
+    needs: [changes, pre-commit, test, coverage]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every gating job
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error::changes: $CHANGES_RESULT"
+            exit 1
+          fi
+          case "$CODE" in
+            true) accepted='["success"]' ;;
+            false) accepted='["success","skipped"]' ;;
+            *) echo "::error::changes output code is '$CODE', expected true or false"; exit 1 ;;
+          esac
+          bad="$(jq -r --argjson ok "$accepted" 'del(.changes) | to_entries[] | select(.value.result as $r | $ok | index($r) | not) | "\(.key)=\(.value.result)"' <<< "$NEEDS")"
+          if [ -n "$bad" ]; then
+            echo "::error::not green: $bad"
+            exit 1
+          fi
+          echo "every gating job is green (code=$CODE)"

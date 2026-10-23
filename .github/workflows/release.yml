@@ -6,8 +6,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
+  ci-gate:
     # Same workflow file as the PR CI (python matrix, coverage gate): the release never runs a weaker gate.
+    # A called workflow's jobs report as "ci-gate / <job>", so none of them can be mistaken for the required `ci` check.
     permissions:
       contents: read
       pull-requests: write
@@ -15,7 +16,7 @@ jobs:
     secrets: inherit
 
   publish:
-    needs: ci
+    needs: ci-gate
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -29,7 +30,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Packaging only (the wheel is pure Python); the matrix gate is the ci job above.
+          # Packaging only (the wheel is pure Python); the matrix gate is the ci-gate job above.
           python-version: '3.10'
 
       - name: Install dependencies
