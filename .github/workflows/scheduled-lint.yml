@@ -23,7 +23,7 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --locked --extra dev
 
       - name: Run pre-commit checks
         id: precommit
@@ -37,13 +37,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install pymarkdownlnt
-        run: pip install pymarkdownlnt
+      - name: Install the locked docs tools
+        run: |
+          pip install uv
+          uv sync --locked --group docs
 
       - name: Run markdown checks
         id: markdown
         run: |
-          pymarkdownlnt scan docs README.md CHANGELOG.md > markdown_output.txt 2>&1
+          uv run --no-sync pymarkdownlnt scan docs README.md CHANGELOG.md > markdown_output.txt 2>&1
           EXIT_CODE=$?
 
           OUTPUT=$(cat markdown_output.txt)

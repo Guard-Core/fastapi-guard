@@ -249,19 +249,19 @@ live-smoke:
 # Serve docs
 .PHONY: serve-docs
 serve-docs:
-	@uv run mkdocs serve
+	@UV_PROJECT_ENVIRONMENT=.venv/docs uv run --python 3.14 --extra dev --group docs mkdocs serve
 	@find . | grep -E "(__pycache__|\\.pyc|\\.pyo|\\.pytest_cache|\\.ruff_cache|\\.mypy_cache)" | xargs rm -rf
 
 # Lint documentation
 .PHONY: lint-docs
 lint-docs:
-	@uv run pymarkdownlnt scan -r --respect-gitignore .
+	@uv run --group docs pymarkdownlnt scan -r --respect-gitignore .
 	@find . | grep -E "(__pycache__|\\.pyc|\\.pyo|\\.pytest_cache|\\.ruff_cache|\\.mypy_cache)" | xargs rm -rf
 
 # Fix documentation
 .PHONY: fix-docs
 fix-docs:
-	@uv run pymarkdownlnt fix -r --respect-gitignore .
+	@uv run --group docs pymarkdownlnt fix -r --respect-gitignore .
 	@find . | grep -E "(__pycache__|\\.pyc|\\.pyo|\\.pytest_cache|\\.ruff_cache|\\.mypy_cache)" | xargs rm -rf
 
 # Prune

@@ -37,19 +37,19 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.10'
+          python-version: '3.14'
 
       - name: Install dependencies
         run: |
           pip install uv
-          uv sync --extra dev
+          uv sync --locked --python 3.14 --extra dev --group docs
 
       - name: Build documentation
-        run: uv run mkdocs build --strict
+        run: uv run --no-sync mkdocs build --strict
 
       - name: Lint documentation
         run: |
-          uv run pymarkdownlnt scan -r -e ./.venv -e ./.git -e ./.github -e ./data -e ./guard -e ./tests .
+          uv run --no-sync pymarkdownlnt scan -r -e ./.venv -e ./.git -e ./.github -e ./data -e ./guard -e ./tests .
 
       - name: Configure Git user
         run: |
@@ -59,7 +59,7 @@ jobs:
       - name: Get and Update Version
         id: get_version
         run: |
-          CURRENT_VERSION=$(uv run yq -r '.aliases.latest' .mike.yml)
+          CURRENT_VERSION=$(uv run --no-sync yq -r '.aliases.latest' .mike.yml)
 
           if [[ ! $CURRENT_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Invalid version format in .mike.yml: $CURRENT_VERSION"
@@ -97,13 +97,13 @@ jobs:
 
       - name: Deploy documentation
         run: |
-          uv run mike deploy --push ${{ env.VERSION }}
-          uv run mike alias --update-aliases --push ${{ env.VERSION }} latest
-          uv run mike set-default --push latest
+          uv run --no-sync mike deploy --push ${{ env.VERSION }}
+          uv run --no-sync mike alias --update-aliases --push ${{ env.VERSION }} latest
+          uv run --no-sync mike set-default --push latest
 
       - name: Deploy to GitHub Pages
         run: |
-          uv run mike list
+          uv run --no-sync mike list
           git push origin gh-pages --force
 
       - name: Update Context7 Documentation

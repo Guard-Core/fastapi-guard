@@ -44,7 +44,14 @@ jobs:
         with:
           python-version: '3.10'
       - run: pip install uv
-      - run: uv sync --extra dev
+      - run: uv sync --locked --extra dev
+      - name: Check uv.lock is tracked and in sync
+        run: |
+          test "$(git ls-files uv.lock)" = "uv.lock"
+          rc=0
+          git check-ignore -q uv.lock || rc=$?
+          test "$rc" -eq 1
+          uv lock --check
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy .
@@ -86,7 +93,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --extra dev
+          uv sync --locked --extra dev
 
       - name: Run tests
         run: |

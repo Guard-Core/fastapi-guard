@@ -19,9 +19,9 @@ ENV PIP_NO_CACHE_DIR=false \
 # Install uv
 RUN pip install uv
 
-COPY pyproject.toml uv.lock* README.md /app/
+COPY pyproject.toml uv.lock README.md /app/
 
-RUN uv sync --extra dev --frozen
+RUN uv sync --locked --extra dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 

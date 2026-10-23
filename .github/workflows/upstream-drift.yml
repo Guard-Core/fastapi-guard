@@ -53,7 +53,7 @@ jobs:
 
       - name: Install the fastapi-guard dev environment
         run: |
-          uv sync --extra dev
+          uv sync --locked --extra dev
 
       - name: Force-install the guard-core@master wheel over the resolved one
         run: |
