@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.models import BehaviorRuleConfig
 from httpx import ASGITransport, AsyncClient
+from starlette.types import ASGIApp
 
 from guard import PureASGISecurityMiddleware, SecurityConfig
 from guard.adapters import StarletteGuardResponse
@@ -57,6 +58,7 @@ async def test_usage_call_refusal_is_answered_with_cors_headers(
     usage = AsyncMock(return_value=refusal)
     monkeypatch.setattr(BehavioralProcessor, "process_usage_rules", usage)
     app = _app()
+    served: ASGIApp
     if variant == "classic":
         app.add_middleware(SecurityMiddleware, config=_config())
         served = app

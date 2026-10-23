@@ -230,6 +230,7 @@ async def reset_rate_limiter() -> AsyncGenerator[None, None]:
 @pytest.fixture
 def clean_rate_limiter() -> None:
     """Reset rate limiter singleton for tests that need a completely clean state"""
-    from guard_core.handlers.ratelimit_handler import RateLimitManager
+    from guard_core.handlers.ratelimit_handler import _managers, _managers_lock
 
-    RateLimitManager._instance = None
+    with _managers_lock:
+        _managers.clear()

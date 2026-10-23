@@ -12,6 +12,8 @@ from guard import SecurityConfig
 from guard.asgi import PureASGISecurityMiddleware
 from guard.middleware import SecurityMiddleware
 
+GuardMiddleware = type[SecurityMiddleware] | type[PureASGISecurityMiddleware]
+
 
 def _tree(root: Path) -> Path:
     for name in (
@@ -40,7 +42,7 @@ def _config() -> SecurityConfig:
     )
 
 
-def _static_app(root: Path, middleware: type[object]) -> FastAPI:
+def _static_app(root: Path, middleware: GuardMiddleware) -> FastAPI:
     app = FastAPI()
     app.mount("/hls", StaticFiles(directory=root / "hls"), name="hls")
     app.mount("/static", StaticFiles(directory=root / "static"), name="static")
@@ -75,7 +77,7 @@ async def _status(app: FastAPI, path: str) -> int:
     ],
 )
 async def test_a_ts_or_map_file_is_clean_only_when_the_static_mount_has_it(
-    tmp_path: Path, middleware: type[object], path: str, status: int
+    tmp_path: Path, middleware: GuardMiddleware, path: str, status: int
 ) -> None:
     app = _static_app(_tree(tmp_path), middleware)
 
@@ -180,7 +182,7 @@ def _corpus_tree(root: Path) -> Path:
 @pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
 @pytest.mark.parametrize("name", STATIC_MOUNT_CORPUS)
 async def test_the_static_mount_benign_corpus_is_clean_when_the_files_exist(
-    tmp_path: Path, middleware: type[object], name: str
+    tmp_path: Path, middleware: GuardMiddleware, name: str
 ) -> None:
     root = _corpus_tree(tmp_path)
     app = FastAPI()
