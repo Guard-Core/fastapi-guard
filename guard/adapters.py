@@ -145,9 +145,22 @@ class StarletteGuardRequest:
         return cast(dict[str, Any], self._request.scope)
 
 
+def _chunk_bytes(chunk: Any) -> bytes:
+    if isinstance(chunk, bytes):
+        return chunk
+    if isinstance(chunk, memoryview):
+        return bytes(chunk)
+    return str(chunk).encode("utf-8", errors="replace")
+
+
 class StarletteGuardResponse:
+    body_is_materialized: bool
+
     def __init__(self, response: Response) -> None:
         self._response = response
+        # Starlette's Response holds ``body`` on the instance; FileResponse and
+        # StreamingResponse never do, so this reads no body and starts no stream.
+        self.body_is_materialized = "body" in vars(response)
 
     @property
     def status_code(self) -> int:
@@ -160,6 +173,12 @@ class StarletteGuardResponse:
     @property
     def body(self) -> bytes | None:
         return bytes(self._response.body)
+
+    def _declared_length_within(self, max_bytes: int) -> int | None:
+        declared = self._response.headers.get("content-length", "")
+        if declared.isascii() and declared.isdigit() and int(declared) <= max_bytes:
+            return int(declared)
+        return None
 
     async def read_body_prefix(self, max_bytes: int) -> bytes:
         if max_bytes <= 0:
@@ -176,19 +195,20 @@ class StarletteGuardResponse:
         streaming = cast(StreamingResponse, self._response)
         streaming.body_iterator = _replay_then_continue(captured, stream)
 
-        try:
-            first_chunk = await anext(stream)
-        except StopAsyncIteration:
-            return b""
-        captured.append(first_chunk)
-
-        if isinstance(first_chunk, bytes):
-            raw = first_chunk
-        elif isinstance(first_chunk, memoryview):
-            raw = bytes(first_chunk)
-        else:
-            raw = str(first_chunk).encode("utf-8", errors="replace")
-        return raw[:max_bytes]
+        # a declared length within the cap is read to its end; any other stream
+        # stops at the first chunk, so an endless stream never stalls the scan
+        declared = self._declared_length_within(max_bytes)
+        received = 0
+        while True:
+            try:
+                chunk = await anext(stream)
+            except StopAsyncIteration:
+                break
+            captured.append(chunk)
+            received += len(_chunk_bytes(chunk))
+            if declared is None or received >= declared:
+                break
+        return b"".join(_chunk_bytes(chunk) for chunk in captured)[:max_bytes]
 
 
 class StarletteResponseFactory:
