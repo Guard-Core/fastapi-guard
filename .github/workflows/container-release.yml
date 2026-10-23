@@ -36,6 +36,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
+          # Container publish, no tests run here; the CI matrix owns the versions.
           python-version: '3.10'
 
       - name: Log in to GHCR

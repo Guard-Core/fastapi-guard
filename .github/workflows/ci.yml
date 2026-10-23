@@ -36,6 +36,8 @@ on:
       - 'reqs.pip'
       - 'tests/**'
   workflow_dispatch:
+  # release.yml calls this file so the release gate is the PR gate, never a copy of it.
+  workflow_call:
 
 jobs:
   pre-commit:
@@ -44,6 +46,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7
         with:
+          # Tooling job with no test run: 3.10 is the floor the lint and type config targets (mypy python_version 3.10); the test matrix owns the other versions.
           python-version: '3.10'
       - run: pip install uv
       - run: uv sync --locked --extra dev
@@ -62,6 +65,13 @@ jobs:
       - run: uv run pre-commit run --all-files
 
   test:
+    name: test (${{ matrix.python-version }}${{ matrix.informational && ', informational' || '' }})
+    continue-on-error: ${{ matrix.informational == true }}
+    env:
+      # uv follows .python-version (3.10) unless told otherwise, so the matrix CPython was set up and never used.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
     runs-on: ubuntu-latest
 
     services:
@@ -81,6 +91,10 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        include:
+          # Informational until pydantic-core ships a 3.15 wheel (LEDGER 6.69): a red 3.15 job never fails the run.
+          - python-version: '3.15'
+            informational: true
 
     steps:
       - name: Checkout code
@@ -90,16 +104,68 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
       - name: Install uv
         run: |
           pip install uv
 
+      - name: Assert uv resolves the matrix interpreter (before sync)
+        run: |
+          uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+
       - name: Install dependencies
         run: |
           uv sync --locked --extra dev
 
+      - name: Assert the synced environment runs the matrix interpreter
+        run: |
+          uv run --no-sync python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+
       - name: Run tests
         run: |
-          IPINFO_TOKEN='${{ secrets.IPINFO_TOKEN || 'test_token' }}' REDIS_URL='redis://localhost:6379' REDIS_PREFIX='test:fastapi_guard:' uv run pytest -v --cov=guard --cov-branch --cov-fail-under=100
+          COVERAGE_FILE=coverage-py${{ matrix.python-version }}.data IPINFO_TOKEN='${{ secrets.IPINFO_TOKEN || 'test_token' }}' REDIS_URL='redis://localhost:6379' REDIS_PREFIX='test:fastapi_guard:' uv run pytest -v --cov=guard --cov-branch
 
+      - name: Upload coverage data
+        if: ${{ !matrix.informational }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-py${{ matrix.python-version }}
+          path: coverage-py${{ matrix.python-version }}.data
+          if-no-files-found: error
+
+  coverage:
+    name: coverage (combined across the matrix)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          # The reporter only reads the data files and the checked-out sources; it does not run the tests.
+          python-version: '3.10'
+
+      - name: Install coverage
+        run: |
+          pip install coverage
+
+      - name: Download every version's coverage data
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-data-py*
+          path: coverage-data
+          merge-multiple: true
+
+      - name: Require the data of every matrix version
+        run: |
+          for v in 3.10 3.11 3.12 3.13 3.14; do
+            test -f "coverage-data/coverage-py$v.data" || { echo "::error::no coverage data for Python $v"; exit 1; }
+          done
+
+      - name: Combine and gate
+        run: |
+          coverage combine coverage-data/coverage-py*.data
+          coverage report -m --fail-under=100

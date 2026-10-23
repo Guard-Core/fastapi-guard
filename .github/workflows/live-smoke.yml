@@ -21,6 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
+          # Stays on 3.10 on purpose: one live-stack smoke on the floor version; the matrix in ci.yml runs the suite on every version.
           python-version: '3.10'
 
       - name: Install uv

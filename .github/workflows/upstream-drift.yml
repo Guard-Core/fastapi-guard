@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    env:
+      # uv follows .python-version (3.10) unless told otherwise, so the matrix CPython was set up and never used.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
+
     services:
       redis:
         image: redis
@@ -46,6 +52,10 @@ jobs:
         run: |
           pip install uv
 
+      - name: Assert uv resolves the matrix interpreter
+        run: |
+          uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+
       - name: Build the guard-core wheel from guard-core@master
         run: |
           cd guard-core-upstream
@@ -57,7 +67,7 @@ jobs:
 
       - name: Force-install the guard-core@master wheel over the resolved one
         run: |
-          wheel=$(ls guard-core-upstream/dist/*.whl)
+          wheel=$(find guard-core-upstream/dist -name '*.whl')
           uv pip install --python .venv/bin/python --no-deps --force-reinstall "$wheel"
           .venv/bin/python -c "import guard_core; print(guard_core.__version__); print(guard_core.__file__)"
 
