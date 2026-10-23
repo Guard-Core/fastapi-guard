@@ -35,7 +35,10 @@ When that happens, `trusted_proxies` unset does **not** mean "`X-Forwarded-For` 
 **Fix**: disable the server's own forwarded-header handling and let `trusted_proxies` be the single authority:
 
 - uvicorn: `--no-proxy-headers` on the CLI, or `proxy_headers=False` in `uvicorn.run(...)`.
-- Gunicorn, Hypercorn, and other WSGI/ASGI servers have equivalent forwarded-header/proxy-trust settings - disable them the same way.
+- Hypercorn has no server flag that does this; it rewrites `scope["client"]` from `X-Forwarded-For` only if you wrap the app in `hypercorn.middleware.ProxyFixMiddleware`, so leave that wrapper out and let `trusted_proxies` resolve the client.
+
+!!! warning "`--forwarded-allow-ips='*'` lets a client choose its own identity"
+    uvicorn's `ProxyHeadersMiddleware` rewrites `scope["client"]` from `X-Forwarded-For` before FastAPI Guard runs, for every connection whose peer address matches `--forwarded-allow-ips` (the `FORWARDED_ALLOW_IPS` environment variable, default `127.0.0.1,::1`). With `--forwarded-allow-ips='*'` (or `FORWARDED_ALLOW_IPS=*`) every peer matches, so a client that reaches uvicorn directly sends a different `X-Forwarded-For` on each request and rate limits, bans and every other check see a new identity each time. In a test with `rate_limit=3`, six requests with rotating `X-Forwarded-For` all returned 200 under `--forwarded-allow-ips='*'`, and 200 200 200 429 429 429 with `--no-proxy-headers`. To keep `trusted_proxies` the single authority, either pass `--no-proxy-headers`, or list in `--forwarded-allow-ips` exactly the addresses you list in `trusted_proxies` and never `*`.
 
 With the server's own handling off, its access log will show the proxy's address rather than the original client - that's expected, since `X-Forwarded-For` is no longer applied before the request reaches your application.
 
