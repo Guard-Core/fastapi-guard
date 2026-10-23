@@ -35,18 +35,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+
       - name: Install dependencies
         run: |
-          pip install mkdocs-material
-          pip install "mkdocstrings[python]"
-          pip install mike
-          pip install pymarkdownlnt
-          pip install yq
-          pip install -e .
+          pip install uv
+          uv sync --extra dev
+
+      - name: Build documentation
+        run: uv run mkdocs build --strict
 
       - name: Lint documentation
         run: |
-          pymarkdownlnt scan -r -e ./.venv -e ./.git -e ./.github -e ./data -e ./guard -e ./tests .
+          uv run pymarkdownlnt scan -r -e ./.venv -e ./.git -e ./.github -e ./data -e ./guard -e ./tests .
 
       - name: Configure Git user
         run: |
@@ -56,17 +59,17 @@ jobs:
       - name: Get and Update Version
         id: get_version
         run: |
-          CURRENT_VERSION=$(yq -r '.aliases.latest' .mike.yml)
+          CURRENT_VERSION=$(uv run yq -r '.aliases.latest' .mike.yml)
 
           if [[ ! $CURRENT_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Invalid version format in .mike.yml: $CURRENT_VERSION"
             exit 1
           fi
-          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
           if [[ -n "${{ secrets.DOCS_VERSION }}" ]]; then
             STORED_VERSION=${{ secrets.DOCS_VERSION }}
-            echo "STORED_VERSION=$STORED_VERSION" >> $GITHUB_ENV
+            echo "STORED_VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
           else
             echo "::error::DOCS_VERSION secret not found"
             exit 1
@@ -74,12 +77,12 @@ jobs:
 
           if [[ "$CURRENT_VERSION" != "$STORED_VERSION" ]]; then
             echo "::notice::Updating DOCS_VERSION from $STORED_VERSION to $CURRENT_VERSION"
-            echo "VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
-            echo "UPDATE_SECRET=true" >> $GITHUB_ENV
+            echo "VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
+            echo "UPDATE_SECRET=true" >> "$GITHUB_ENV"
           else
             echo "::notice::Versions match ($CURRENT_VERSION), no update needed"
-            echo "VERSION=$STORED_VERSION" >> $GITHUB_ENV
-            echo "UPDATE_SECRET=false" >> $GITHUB_ENV
+            echo "VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
+            echo "UPDATE_SECRET=false" >> "$GITHUB_ENV"
           fi
 
       - name: Update Docs Version Secret
@@ -94,13 +97,13 @@ jobs:
 
       - name: Deploy documentation
         run: |
-          mike deploy --push ${{ env.VERSION }}
-          mike alias --update-aliases --push ${{ env.VERSION }} latest
-          mike set-default --push latest
+          uv run mike deploy --push ${{ env.VERSION }}
+          uv run mike alias --update-aliases --push ${{ env.VERSION }} latest
+          uv run mike set-default --push latest
 
       - name: Deploy to GitHub Pages
         run: |
-          mike list
+          uv run mike list
           git push origin gh-pages --force
 
       - name: Update Context7 Documentation
