@@ -42,7 +42,7 @@ from guard.websocket import (
     make_guard_websocket as make_guard_websocket,
 )
 
-register_adapter("fastapi-guard", "async")
+register_adapter("fastapi-guard")
 
 if TYPE_CHECKING:
     from guard_core import (

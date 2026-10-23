@@ -147,6 +147,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             geo_ip_handler=self.geo_ip_handler,
             rate_limit_handler=self.rate_limit_handler,
             guard_decorator=self.guard_decorator,
+            adapter="fastapi-guard",
         )
 
         routing_context = RoutingContext(
