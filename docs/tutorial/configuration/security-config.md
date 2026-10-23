@@ -88,7 +88,7 @@ Redis Settings
 | `enable_redis` | bool | True | Enable/disable Redis for distributed state management |
 | `redis_url` | str \| None | "redis://localhost:6379" | Redis URL for distributed state management |
 | `redis_prefix` | str | "guard_core:" | Prefix for Redis keys to avoid collisions with other apps |
-| `lazy_init` | bool | True | When Redis is enabled, defers cloud-IP/geo-IP warmup to a background task instead of blocking `initialize()`; has no effect without Redis. Whether `initialize()` itself runs at ASGI startup or on the first request is a separate concern controlled by lifespan wiring — see [Eager Initialization](../first-steps.md#eager-initialization-with-fastapi-lifespan) and [Initialization Status](#initialization-status) below |
+| `lazy_init` | bool | True | When Redis is enabled, defers cloud-IP/geo-IP warmup to a background task instead of blocking `initialize()`; has no effect without Redis. Whether `initialize()` itself runs at ASGI startup or on the first request is a separate concern controlled by lifespan wiring - see [Eager Initialization](../first-steps.md#eager-initialization-with-fastapi-lifespan) and [Initialization Status](#initialization-status) below |
 
 Initialization Status
 ----------------------

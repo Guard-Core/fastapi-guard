@@ -312,7 +312,7 @@ A module-local registry keyed by `(id(config), id(decorator))` holds a `Middlewa
 
 The lifespan helpers (`guard_lifespan`, `make_lifespan`) and the lazy-init fallback path both write to this registry after `SecurityMiddleware.initialize()` succeeds. A subsequent `SecurityMiddleware` instance adopts the registered components by reference via `_adopt_warm_state()` only when it resolves both the same `SecurityConfig` and the same decorator handler; otherwise it builds its own pipeline. The decorator is part of the key because the pipeline is derived from the registered per-route configuration, so two apps sharing one `SecurityConfig` but decorating different routes must not share a pipeline.
 
-This is the mechanism that guarantees `composite_handler.start()` — which sets the OTEL/Logfire global tracer providers and starts the agent worker tasks — runs exactly once per config across the spawned-vs-live middleware instances Starlette produces when a lifespan is in use.
+This is the mechanism that guarantees `composite_handler.start()` - which sets the OTEL/Logfire global tracer providers and starts the agent worker tasks - runs exactly once per config across the spawned-vs-live middleware instances Starlette produces when a lifespan is in use.
 
 ___
 

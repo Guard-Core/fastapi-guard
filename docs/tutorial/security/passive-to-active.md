@@ -10,16 +10,16 @@ Passive to Active
 
 FastAPI Guard can run in **passive mode** (detect and log, never block) or **active mode** (detect and block). On a high-traffic, latency- and security-sensitive service the risky moment is the flip: turning enforcement on without accidentally blocking legitimate traffic.
 
-This guide is a safe, reversible path for that flip: **observe → preview → verify → enforce → rollback**. Every step uses signals FastAPI Guard already produces — no new configuration beyond the `passive_mode` flag itself.
+This guide is a safe, reversible path for that flip: **observe → preview → verify → enforce → rollback**. Every step uses signals FastAPI Guard already produces - no new configuration beyond the `passive_mode` flag itself.
 
-The flip is a single boolean. `passive_mode=True` logs only; `passive_mode=False` blocks. Rollback is the same boolean flipped back — no data migration, no redeploy of rules.
+The flip is a single boolean. `passive_mode=True` logs only; `passive_mode=False` blocks. Rollback is the same boolean flipped back - no data migration, no redeploy of rules.
 
 ___
 
 What passive mode actually does
 -------------------------------
 
-`passive_mode` lives on `SecurityConfig` (it is `False` by default — i.e. blocking is the default):
+`passive_mode` lives on `SecurityConfig` (it is `False` by default - i.e. blocking is the default):
 
 ```python
 config = SecurityConfig(
@@ -28,7 +28,7 @@ config = SecurityConfig(
 )
 ```
 
-In passive mode, every check still runs and still produces its signal — it just doesn't deny the request. Two artifacts are emitted for every request that *would* have been blocked:
+In passive mode, every check still runs and still produces its signal - it just doesn't deny the request. Two artifacts are emitted for every request that *would* have been blocked:
 
 - **A log line prefixed `[PASSIVE MODE]`** (e.g. `[PASSIVE MODE] Penetration attempt detected from ...`). This is what you grep.
 - **A telemetry event with `action_taken="logged_only"`** (instead of `"request_blocked"`). If you run the Guard Agent, these events are already shipped off-box to your dashboard, so "what would have been blocked?" is answerable without touching the host.
@@ -37,10 +37,10 @@ That means the data you need to size the blast radius of going active **already 
 
 ___
 
-Step 1 — Observe
+Step 1 - Observe
 ----------------
 
-Deploy with passive mode on and let it run long enough to cover a representative slice of traffic (a full business cycle — typically a few days, including any batch/cron peaks):
+Deploy with passive mode on and let it run long enough to cover a representative slice of traffic (a full business cycle - typically a few days, including any batch/cron peaks):
 
 ```python
 config = SecurityConfig(
@@ -55,12 +55,12 @@ Nothing is blocked. Everything that *would* be blocked is logged with `[PASSIVE 
 
 ___
 
-Step 2 — Preview the blast radius
+Step 2 - Preview the blast radius
 ---------------------------------
 
 Before flipping, quantify what active mode *would* block. If you run the Guard Agent, the cleanest source is your dashboard: filter events to `action_taken="logged_only"` and group by reason and client IP.
 
-If you only have logs, this read-only recipe summarizes the would-block set straight from a `[PASSIVE MODE]` log file — counts by client IP and a total. It changes nothing; it only reads your log:
+If you only have logs, this read-only recipe summarizes the would-block set straight from a `[PASSIVE MODE]` log file - counts by client IP and a total. It changes nothing; it only reads your log:
 
 ```python
 import collections
@@ -91,7 +91,7 @@ A small, concentrated set (a handful of scanner IPs) is the signal you want befo
 
 ___
 
-Step 3 — Verify false positives
+Step 3 - Verify false positives
 --------------------------------
 
 For each would-block source, decide: real threat, or legitimate traffic caught by a rule?
@@ -112,7 +112,7 @@ Re-run Step 2 after each adjustment. When the would-block set contains only traf
 
 ___
 
-Step 4 — Enforce
+Step 4 - Enforce
 ----------------
 
 Flip the single boolean:
@@ -126,13 +126,13 @@ config = SecurityConfig(
 )
 ```
 
-The same checks that were logging `[PASSIVE MODE]` now deny requests, and their telemetry switches from `action_taken="logged_only"` to `"request_blocked"`. Nothing else changes — the rules, thresholds and whitelist you vetted in passive mode are exactly what now enforces.
+The same checks that were logging `[PASSIVE MODE]` now deny requests, and their telemetry switches from `action_taken="logged_only"` to `"request_blocked"`. Nothing else changes - the rules, thresholds and whitelist you vetted in passive mode are exactly what now enforces.
 
 Roll this out the way you would any behavior change: a canary instance first, watching your 4xx rate and the `request_blocked` event stream, before fleet-wide.
 
 ___
 
-Step 5 — Rollback
+Step 5 - Rollback
 -----------------
 
 If active mode blocks something you did not anticipate, roll back by flipping the same boolean:
@@ -143,14 +143,14 @@ config = SecurityConfig(
 )
 ```
 
-Rollback is immediate and total — passive mode resumes logging instead of blocking, with no other state to unwind. Then return to Step 3, resolve the false positive, and re-enforce.
+Rollback is immediate and total - passive mode resumes logging instead of blocking, with no other state to unwind. Then return to Step 3, resolve the false positive, and re-enforce.
 
 ___
 
 Incremental rollout (optional)
 ------------------------------
 
-`passive_mode` is global. If you would rather enforce in stages than flip everything at once, the per-route decorators let you turn real blocking on for specific routes while the rest of the app stays in passive mode — for example tightening IP access on a sensitive admin route first:
+`passive_mode` is global. If you would rather enforce in stages than flip everything at once, the per-route decorators let you turn real blocking on for specific routes while the rest of the app stays in passive mode - for example tightening IP access on a sensitive admin route first:
 
 ```python
 from guard import SecurityDecorator
@@ -164,7 +164,7 @@ async def admin() -> dict[str, str]:
     return {"status": "ok"}
 ```
 
-There is no per-check "active" flag — enforcement granularity is the global `passive_mode` flip plus the per-route decorators. Stage the routes you are confident about, then flip the global boolean once the remainder is verified.
+There is no per-check "active" flag - enforcement granularity is the global `passive_mode` flip plus the per-route decorators. Stage the routes you are confident about, then flip the global boolean once the remainder is verified.
 
 ___
 

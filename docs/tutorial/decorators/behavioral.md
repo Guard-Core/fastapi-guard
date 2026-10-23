@@ -15,7 +15,7 @@ ___
 Enabling behavioral decorators
 ------------------------------
 
-Behavioral decorators are wired into the running middleware in three steps. The third step is what actually makes the rules fire — attaching a decorator without it leaves the rule inert.
+Behavioral decorators are wired into the running middleware in three steps. The third step is what actually makes the rules fire - attaching a decorator without it leaves the rule inert.
 
 ```python
 from fastapi import FastAPI
@@ -31,7 +31,7 @@ app.add_middleware(SecurityMiddleware, config=config)
 # 2. Build a decorator bound to the same config
 guard_deco = SecurityDecorator(config)
 
-# 3. Wire the decorator into the middleware — REQUIRED
+# 3. Wire the decorator into the middleware - REQUIRED
 app.state.guard_decorator = guard_deco
 
 
@@ -41,7 +41,7 @@ async def sensitive_endpoint() -> dict[str, str]:
     return {"data": "sensitive information"}
 ```
 
-**Without `app.state.guard_decorator = guard_deco`, the decorators attach to your routes but their rules never fire** — the middleware has no handle on the decorator, so no behavioral evaluation runs. If you hold the `SecurityMiddleware` instance directly rather than using `add_middleware`, the equivalent call is `middleware.set_decorator_handler(guard_deco)`.
+**Without `app.state.guard_decorator = guard_deco`, the decorators attach to your routes but their rules never fire** - the middleware has no handle on the decorator, so no behavioral evaluation runs. If you hold the `SecurityMiddleware` instance directly rather than using `add_middleware`, the equivalent call is `middleware.set_decorator_handler(guard_deco)`.
 
 Every decorator example below assumes this wiring is in place.
 
@@ -508,18 +508,18 @@ Verifying it works
 
 Once the decorator is wired (see [Enabling behavioral decorators](#enabling-behavioral-decorators)), confirm rules are firing end to end:
 
-- **Trip a low-threshold rule.** Set a deliberately small threshold — e.g. `@guard_deco.usage_monitor(max_calls=2, window=60, action="log")` — and call the route a few times. On the threshold breach the engine's `BehavioralProcessor` emits a `decorator_violation` event.
+- **Trip a low-threshold rule.** Set a deliberately small threshold - e.g. `@guard_deco.usage_monitor(max_calls=2, window=60, action="log")` - and call the route a few times. On the threshold breach the engine's `BehavioralProcessor` emits a `decorator_violation` event.
 - **Observe the outcome.** What you see depends on the rule's `action`: `log` and `throttle` write a log line and let the request proceed, and `ban` returns `403`. With the Guard Agent enabled, the `decorator_violation` events are also shipped to your dashboard, so you can confirm a rule fired even when its action is `log` or `throttle`.
 - **Trial safely with passive mode.** Set `passive_mode=True` on the `SecurityConfig` to run behavioral rules in log-only mode: violations are recorded with the `[PASSIVE MODE]` prefix instead of blocking, so you can validate thresholds against production traffic before enforcing. See [Security Monitoring](../security/monitoring.md).
 
-If a route's rule never fires, the wiring step is almost always the cause — verify `app.state.guard_decorator` is set to the same decorator that decorates the route.
+If a route's rule never fires, the wiring step is almost always the cause - verify `app.state.guard_decorator` is set to the same decorator that decorates the route.
 
 ___
 
 Per-route rules vs. fleet-wide rules
 ------------------------------------
 
-The decorators on this page attach rules to a **single route**. To apply a rule to **every route** — for example fleet-wide 404 / scraping tracking — set `SecurityConfig.global_behavior_rules` instead. Global rules need no per-route decorator and no `app.state.guard_decorator` wiring; they are evaluated by the middleware for all traffic.
+The decorators on this page attach rules to a **single route**. To apply a rule to **every route** - for example fleet-wide 404 / scraping tracking - set `SecurityConfig.global_behavior_rules` instead. Global rules need no per-route decorator and no `app.state.guard_decorator` wiring; they are evaluated by the middleware for all traffic.
 
 The two compose: a decorated route is evaluated against both its own decorator rules and any `global_behavior_rules`. Reach for decorators when a limit is specific to an endpoint, and `global_behavior_rules` when a policy should hold everywhere. See the [Security Config reference](../configuration/security-config.md) for the field details.
 

@@ -214,7 +214,7 @@ app = FastAPI(lifespan=make_lifespan(my_lifespan))
 app.add_middleware(SecurityMiddleware, config=config)
 ```
 
-If a host framework owns the `lifespan` slot and only exposes its own startup-hook API — NiceGUI's `app.on_startup`, for example — await `guard_startup(app)` from that hook instead:
+If a host framework owns the `lifespan` slot and only exposes its own startup-hook API - NiceGUI's `app.on_startup`, for example - await `guard_startup(app)` from that hook instead:
 
 ```python
 from nicegui import app
@@ -233,7 +233,7 @@ async def _warm_up_guard() -> None:
 app.on_startup(_warm_up_guard)
 ```
 
-NiceGUI's `app.on_startup` takes the handler as an argument; it is not a decorator, so `@app.on_startup` is wrong (it returns `None` and rebinds your function). It runs once at app boot, from NiceGUI's FastAPI lifespan, before the server accepts connections, not per client (per client is `app.on_connect`). These warm-up helpers warm guard-core's singletons (cloud-IP cache, IP ban store, suspicious patterns, Redis pool) AND populate a shared-state registry so the live request-handling middleware adopts the spawned instance's pipeline, agent handler, and event bus by reference. This guarantees `composite_handler.start()` runs exactly once per config — no duplicate OTEL `set_tracer_provider already set` warning, no leaked agent worker tasks. `guard_startup` performs exactly what `guard_lifespan` does on entry, so it shares the same idempotency: a second call finds the state already registered and adopts it instead of re-initializing, which keeps the once-at-boot goal safe even under NiceGUI's reload/restart.
+NiceGUI's `app.on_startup` takes the handler as an argument; it is not a decorator, so `@app.on_startup` is wrong (it returns `None` and rebinds your function). It runs once at app boot, from NiceGUI's FastAPI lifespan, before the server accepts connections, not per client (per client is `app.on_connect`). These warm-up helpers warm guard-core's singletons (cloud-IP cache, IP ban store, suspicious patterns, Redis pool) AND populate a shared-state registry so the live request-handling middleware adopts the spawned instance's pipeline, agent handler, and event bus by reference. This guarantees `composite_handler.start()` runs exactly once per config - no duplicate OTEL `set_tracer_provider already set` warning, no leaked agent worker tasks. `guard_startup` performs exactly what `guard_lifespan` does on entry, so it shares the same idempotency: a second call finds the state already registered and adopts it instead of re-initializing, which keeps the once-at-boot goal safe even under NiceGUI's reload/restart.
 
 Decorator Visibility Shapes the Pipeline
 ------------------------------------------
@@ -263,7 +263,7 @@ def get_initialization_status(self) -> dict[str, Any]:
     """
 ```
 
-Synchronous and dependency-free — safe to call from a health check or warmup probe on every hit. See [Initialization Status](../tutorial/configuration/security-config.md#initialization-status) for the response shape and `guard.status.add_status_route` for an opt-in HTTP wrapper around it.
+Synchronous and dependency-free - safe to call from a health check or warmup probe on every hit. See [Initialization Status](../tutorial/configuration/security-config.md#initialization-status) for the response shape and `guard.status.add_status_route` for an opt-in HTTP wrapper around it.
 
 set_decorator_handler
 ---------------------
@@ -298,11 +298,11 @@ State Sharing via the Shared-State Registry
 
 FastAPI Guard maintains a module-local registry at `guard._middleware_state`, keyed by `(id(config), id(guard_decorator))`. The registry holds a `MiddlewareState` dataclass containing the live `security_pipeline`, `composite_handler`, `event_bus`, `metrics_collector`, `response_factory`, `validator`, `bypass_handler`, `behavioral_processor`, `handler_initializer`, and `agent_handler`.
 
-When multiple `SecurityMiddleware` instances are constructed against the same `SecurityConfig` and resolve the same decorator handler — the common case under the lifespan helpers (where one instance is spawned to perform warmup while Starlette later constructs the live request-handling instance), and the sub-app mounted-middleware case where every sub-app shares one decorator — every instance after the first adopts the registered components by reference instead of building its own.
+When multiple `SecurityMiddleware` instances are constructed against the same `SecurityConfig` and resolve the same decorator handler - the common case under the lifespan helpers (where one instance is spawned to perform warmup while Starlette later constructs the live request-handling instance), and the sub-app mounted-middleware case where every sub-app shares one decorator - every instance after the first adopts the registered components by reference instead of building its own.
 
 The keying is intentional: since guard-core 3.10 the pipeline is derived from route configuration as well as config, so config identity alone is not a safe cache key. Two `SecurityMiddleware` instances sharing a `SecurityConfig` but resolving different `guard_decorator` handlers (for example, two sub-apps mounted under one root app, each with its own decorated routes) get separate registry entries and each builds its own pipeline. Two `SecurityConfig` instances with identical contents but separate `id()` values also get separate registry entries, because they are logically distinct configurations. If you want shared state, share both the config object and the decorator handler.
 
-The practical effect is that `composite_handler.start()` — which sets the OTEL/Logfire global tracer providers and starts the agent worker tasks — runs exactly once per config object. No duplicate `set_tracer_provider already set` warning, no leaked agent worker tasks, no duplicate buffered events.
+The practical effect is that `composite_handler.start()` - which sets the OTEL/Logfire global tracer providers and starts the agent worker tasks - runs exactly once per config object. No duplicate `set_tracer_provider already set` warning, no leaked agent worker tasks, no duplicate buffered events.
 
 ___
 
@@ -439,7 +439,7 @@ app = FastAPI(lifespan=guard_lifespan)
 app.add_middleware(SecurityMiddleware, config=config)
 ```
 
-`guard_lifespan` runs the full initialization sequence at ASGI startup so the first request hits a pre-warmed middleware. Use `make_lifespan(existing)` to compose with your own lifespan context manager, or `guard_startup(app)` from a host framework's own startup hook (e.g. NiceGUI's `app.on_startup`) when it owns the `lifespan` slot and you cannot pass one in — see [Eager Initialization](../tutorial/first-steps.md#eager-initialization-with-fastapi-lifespan) for all three.
+`guard_lifespan` runs the full initialization sequence at ASGI startup so the first request hits a pre-warmed middleware. Use `make_lifespan(existing)` to compose with your own lifespan context manager, or `guard_startup(app)` from a host framework's own startup hook (e.g. NiceGUI's `app.on_startup`) when it owns the `lifespan` slot and you cannot pass one in - see [Eager Initialization](../tutorial/first-steps.md#eager-initialization-with-fastapi-lifespan) for all three.
 
 ___
 

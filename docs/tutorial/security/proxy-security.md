@@ -28,16 +28,16 @@ ___
 Prerequisite: Your App Server Must Not Pre-Resolve the Client
 ---------------------------------------------------------------
 
-FastAPI Guard reads the connecting IP from `request.client.host`, which is whatever your ASGI server put in `scope["client"]` — by the time a request reaches `SecurityMiddleware`, the server has already run. Several ASGI/WSGI servers rewrite that value themselves from `X-Forwarded-For` before any application code runs. uvicorn is the clearest example: it defaults to `proxy_headers=True` with `forwarded_allow_ips="127.0.0.1"`, so a reverse proxy connecting from loopback (a same-host `proxy_pass`, the common case) has its `X-Forwarded-For` applied to `scope["client"]` upstream of FastAPI Guard.
+FastAPI Guard reads the connecting IP from `request.client.host`, which is whatever your ASGI server put in `scope["client"]` - by the time a request reaches `SecurityMiddleware`, the server has already run. Several ASGI/WSGI servers rewrite that value themselves from `X-Forwarded-For` before any application code runs. uvicorn is the clearest example: it defaults to `proxy_headers=True` with `forwarded_allow_ips="127.0.0.1"`, so a reverse proxy connecting from loopback (a same-host `proxy_pass`, the common case) has its `X-Forwarded-For` applied to `scope["client"]` upstream of FastAPI Guard.
 
-When that happens, `trusted_proxies` unset does **not** mean "`X-Forwarded-For` is never trusted" — the server already trusted it, so an attacker's own forged header value becomes the connecting IP as far as rate limiting, IP bans, and every other check are concerned. guard-core detects the fingerprint of this condition (the connecting IP appearing inside its own `X-Forwarded-For` chain, which a real proxy never produces) and logs one warning naming the fix, but it cannot recover the true peer once the server has already overwritten it.
+When that happens, `trusted_proxies` unset does **not** mean "`X-Forwarded-For` is never trusted" - the server already trusted it, so an attacker's own forged header value becomes the connecting IP as far as rate limiting, IP bans, and every other check are concerned. guard-core detects the fingerprint of this condition (the connecting IP appearing inside its own `X-Forwarded-For` chain, which a real proxy never produces) and logs one warning naming the fix, but it cannot recover the true peer once the server has already overwritten it.
 
 **Fix**: disable the server's own forwarded-header handling and let `trusted_proxies` be the single authority:
 
 - uvicorn: `--no-proxy-headers` on the CLI, or `proxy_headers=False` in `uvicorn.run(...)`.
-- Gunicorn, Hypercorn, and other WSGI/ASGI servers have equivalent forwarded-header/proxy-trust settings — disable them the same way.
+- Gunicorn, Hypercorn, and other WSGI/ASGI servers have equivalent forwarded-header/proxy-trust settings - disable them the same way.
 
-With the server's own handling off, its access log will show the proxy's address rather than the original client — that's expected, since `X-Forwarded-For` is no longer applied before the request reaches your application.
+With the server's own handling off, its access log will show the proxy's address rather than the original client - that's expected, since `X-Forwarded-For` is no longer applied before the request reaches your application.
 
 ___
 

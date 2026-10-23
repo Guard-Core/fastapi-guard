@@ -171,14 +171,14 @@ Connect your existing setup in 2 minutes with [`guard-agent`](https://pypi.org/p
 uv add guard-agent
 ```
 
-Then add the agent fields to your existing `SecurityConfig` — that's the entire integration. The middleware drives the agent's lifecycle for you; **no `AgentConfig`, no `lifespan` hook, no manual `start()/stop()` required.**
+Then add the agent fields to your existing `SecurityConfig` - that's the entire integration. The middleware drives the agent's lifecycle for you; **no `AgentConfig`, no `lifespan` hook, no manual `start()/stop()` required.**
 
 ```python
 config = SecurityConfig(
     rate_limit=100,
     auto_ban_threshold=5,
     enable_penetration_detection=True,
-    # Telemetry — that's it
+    # Telemetry - that's it
     enable_agent=True,
     agent_api_key="YOUR_API_KEY",
     agent_project_id="YOUR_PROJECT_ID",

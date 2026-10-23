@@ -106,7 +106,7 @@ Eager initialization with FastAPI lifespan
 ------------------------------------------
 
 !!! warning "`lazy_init=False` alone does not give you boot-time initialization"
-    Without lifespan wiring, fastapi-guard initializes lazily on the **first request** — the Redis connection, cloud-IP fetches, pipeline build, and agent / OTEL / Logfire startup all happen there, no matter how `SecurityConfig.lazy_init` is set. `lazy_init` only controls whether that initialization (whenever it happens) awaits cloud-IP/geo-IP warmup inline or backgrounds it — see [`lazy_init`](configuration/security-config.md#redis-settings). Getting initialization to run at ASGI startup instead of on the first request requires wiring one of the three hooks below.
+    Without lifespan wiring, fastapi-guard initializes lazily on the **first request** - the Redis connection, cloud-IP fetches, pipeline build, and agent / OTEL / Logfire startup all happen there, no matter how `SecurityConfig.lazy_init` is set. `lazy_init` only controls whether that initialization (whenever it happens) awaits cloud-IP/geo-IP warmup inline or backgrounds it - see [`lazy_init`](configuration/security-config.md#redis-settings). Getting initialization to run at ASGI startup instead of on the first request requires wiring one of the three hooks below.
 
 Without any of them, the first caller pays the full initialization cost, and a middleware that then reports itself as uninitialized on that first request is expected, not a bug.
 
@@ -152,7 +152,7 @@ app.add_middleware(SecurityMiddleware, config=config)
 The host framework owns the lifespan: `guard_startup`
 ---------------------------------------------------------
 
-Frameworks that wrap FastAPI — [NiceGUI](https://nicegui.io/), Chainlit, Gradio, and similar — own the `lifespan` slot internally and don't let you compose one in. They instead expose their own startup-hook registration API. For those, await `guard_startup(app)` from that hook:
+Frameworks that wrap FastAPI - [NiceGUI](https://nicegui.io/), Chainlit, Gradio, and similar - own the `lifespan` slot internally and don't let you compose one in. They instead expose their own startup-hook registration API. For those, await `guard_startup(app)` from that hook:
 
 ```python
 from nicegui import app, ui

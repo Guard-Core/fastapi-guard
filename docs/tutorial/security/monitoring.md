@@ -37,7 +37,7 @@ config = SecurityConfig(
 
 In passive mode, FastAPI Guard will detect potential penetration attempts, but instead of blocking the request, it will only log the incident with the prefix `[PASSIVE MODE]` in your logs. This helps identify false positives before enabling full blocking mode.
 
-When you are ready to turn enforcement on, follow [Passive to Active](passive-to-active.md) — a step-by-step, reversible path that previews the blast radius before you flip the switch.
+When you are ready to turn enforcement on, follow [Passive to Active](passive-to-active.md) - a step-by-step, reversible path that previews the blast radius before you flip the switch.
 
 ___
 

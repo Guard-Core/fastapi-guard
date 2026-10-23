@@ -9,7 +9,7 @@ description: OpenTelemetry, Logfire, and event/metric/log muting for FastAPI Gua
 
 FastAPI Guard emits security events and request metrics through a composable telemetry pipeline provided by [guard-core](https://github.com/Guard-Core/guard-core). Events can be muted, metrics can be muted, individual security-check logs can be muted, and exports to OpenTelemetry and Logfire are opt-in.
 
-The middleware installs and tears down the telemetry pipeline automatically — you only set fields on `SecurityConfig`.
+The middleware installs and tears down the telemetry pipeline automatically - you only set fields on `SecurityConfig`.
 
 ## Two-tier model
 
@@ -45,9 +45,9 @@ All three mute fields validate their contents at config time. Unknown values rai
 
 Drawn from constants in `guard_core.core.events.event_types`:
 
-- **`muted_event_types`** — `access_denied`, `authentication_failed`, `behavior_violation`, `cloud_blocked`, `content_filtered`, `country_blocked`, `csp_violation`, `custom_request_check`, `decoding_error`, `decorator_violation`, `dynamic_rule_applied`, `dynamic_rule_updated`, `dynamic_rule_violation`, `emergency_mode_activated`, `emergency_mode_block`, `geo_lookup_failed`, `https_enforced`, `ip_banned`, `ip_blocked`, `ip_unbanned`, `path_excluded`, `pattern_added`, `pattern_detected`, `pattern_removed`, `penetration_attempt`, `rate_limited`, `rate_limit_script_reloaded`, `redis_connection`, `redis_error`, `route_unresolved`, `security_bypass`, `security_headers_applied`, `user_agent_blocked`
-- **`muted_metric_types`** — `error_rate`, `request_count`, `response_time`
-- **`muted_check_logs`** — `authentication`, `cloud_ip_refresh`, `cloud_provider`, `custom_request`, `custom_validators`, `emergency_mode`, `https_enforcement`, `ip_security`, `rate_limit`, `referrer`, `request_logging`, `request_size_content`, `required_headers`, `route_config`, `suspicious_activity`, `time_window`, `user_agent`
+- **`muted_event_types`** - `access_denied`, `authentication_failed`, `behavior_violation`, `cloud_blocked`, `content_filtered`, `country_blocked`, `csp_violation`, `custom_request_check`, `decoding_error`, `decorator_violation`, `dynamic_rule_applied`, `dynamic_rule_updated`, `dynamic_rule_violation`, `emergency_mode_activated`, `emergency_mode_block`, `geo_lookup_failed`, `https_enforced`, `ip_banned`, `ip_blocked`, `ip_unbanned`, `path_excluded`, `pattern_added`, `pattern_detected`, `pattern_removed`, `penetration_attempt`, `rate_limited`, `rate_limit_script_reloaded`, `redis_connection`, `redis_error`, `route_unresolved`, `security_bypass`, `security_headers_applied`, `user_agent_blocked`
+- **`muted_metric_types`** - `error_rate`, `request_count`, `response_time`
+- **`muted_check_logs`** - `authentication`, `cloud_ip_refresh`, `cloud_provider`, `custom_request`, `custom_validators`, `emergency_mode`, `https_enforcement`, `ip_security`, `rate_limit`, `referrer`, `request_logging`, `request_size_content`, `required_headers`, `route_config`, `suspicious_activity`, `time_window`, `user_agent`
 
 ## Muting events, metrics, and check logs
 
@@ -67,7 +67,7 @@ app.add_middleware(SecurityMiddleware, config=config)
 
 - `muted_event_types` short-circuits events before any exporter sees them.
 - `muted_metric_types` short-circuits metrics before any exporter sees them.
-- `muted_check_logs` suppresses both the pipeline's block/error log entries *and* the in-check `log_activity()` calls — both are gated on the same set.
+- `muted_check_logs` suppresses both the pipeline's block/error log entries *and* the in-check `log_activity()` calls - both are gated on the same set.
 
 ## Enabling OpenTelemetry
 
@@ -109,7 +109,7 @@ app.add_middleware(SecurityMiddleware, config=config)
 
 If `otel_resource_attributes` contains a `service.name` key it overrides `otel_service_name` (last-write-wins). Prefer setting the service name via `otel_service_name` and use `otel_resource_attributes` only for environment/version/region tags.
 
-Incoming W3C `traceparent` headers are continued automatically — guard spans become children of the caller's trace. `tracestate` headers are forwarded alongside when present.
+Incoming W3C `traceparent` headers are continued automatically - guard spans become children of the caller's trace. `tracestate` headers are forwarded alongside when present.
 
 Three instruments are emitted when OTel is enabled:
 
@@ -186,7 +186,7 @@ When `enable_enrichment=True`, every event and every metric routed through the m
 | `guard.threat_score` | `int` (0-100) | Deterministic map of `event_type` → score (penetration_attempt=90, ip_banned=70, medium=50, rate_limited=20, default=20) | events only |
 | `guard.rule.id` | `str` | `DynamicRuleManager.match_event(event)` when the cached rule matched | events only |
 | `guard.rule.version` | `int` | Same source as `guard.rule.id` | events only |
-| `guard.behavior.correlation_key` | `str` (16-char hex) | SHA-256 prefix of `ip \| service \| floor(now/300)` — stable within a 5-minute window | events only |
+| `guard.behavior.correlation_key` | `str` (16-char hex) | SHA-256 prefix of `ip \| service \| floor(now/300)` - stable within a 5-minute window | events only |
 | `guard.behavior.recent_event_count` | `int` | Total events observed from the IP across all endpoints in the last 5 minutes | events only |
 
 All fields are nullable; absence = unavailable context. Every exporter (guard-agent, OTel, Logfire) sees the same enriched payload. See the [guard-core telemetry reference](https://github.com/Guard-Core/guard-core/blob/master/docs/architecture/telemetry.md) for the full behavior spec.
@@ -200,17 +200,17 @@ When `enable_otel=True` and the request carries a W3C `traceparent` header, the 
 ### Spans don't show up in your OTel backend
 
 1. Verify `enable_otel=True` is set on `SecurityConfig`.
-2. Check `python -c "import opentelemetry.sdk"` — if it raises `ImportError`, the handler logs `opentelemetry-sdk not installed, OTEL handler disabled` on startup.
-3. Confirm `otel_exporter_endpoint` points to an OTLP/HTTP receiver on port `4318` (not `4317` — that's gRPC).
+2. Check `python -c "import opentelemetry.sdk"` - if it raises `ImportError`, the handler logs `opentelemetry-sdk not installed, OTEL handler disabled` on startup.
+3. Confirm `otel_exporter_endpoint` points to an OTLP/HTTP receiver on port `4318` (not `4317` - that's gRPC).
 4. Confirm the middleware is installed via `app.add_middleware(SecurityMiddleware, config=config)` and not bypassed by a competing middleware.
 
 ### Events aren't muted even though `muted_event_types` is set
 
-Confirm the value is in the **Valid mute values** list above. A typo silently fails validation if the field is used elsewhere — check the startup logs for a `ValidationError`.
+Confirm the value is in the **Valid mute values** list above. A typo silently fails validation if the field is used elsewhere - check the startup logs for a `ValidationError`.
 
 ### `logfire.info()` warning: "No logs or spans will be created until `logfire.configure()` has been called"
 
-Guard Core configures Logfire inside the middleware startup lifecycle. If the warning appears at runtime, the middleware has not yet started — verify `enable_logfire=True` is on the `SecurityConfig` passed to `add_middleware`.
+Guard Core configures Logfire inside the middleware startup lifecycle. If the warning appears at runtime, the middleware has not yet started - verify `enable_logfire=True` is on the `SecurityConfig` passed to `add_middleware`.
 
 ### `ValidationError` on startup mentioning an unknown check/event/metric
 

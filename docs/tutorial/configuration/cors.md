@@ -8,7 +8,7 @@ keywords: fastapi cors, cors configuration, api security, cross origin resource 
 CORS Configuration
 ==================
 
-FastAPI Guard provides comprehensive CORS (Cross-Origin Resource Sharing) configuration options. Set `enable_cors=True` on `SecurityConfig` and the middleware activates CORS automatically — no separate setup call is required.
+FastAPI Guard provides comprehensive CORS (Cross-Origin Resource Sharing) configuration options. Set `enable_cors=True` on `SecurityConfig` and the middleware activates CORS automatically - no separate setup call is required.
 
 ___
 
