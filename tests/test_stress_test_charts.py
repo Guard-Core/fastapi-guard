@@ -6,6 +6,7 @@ import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -31,13 +32,13 @@ def results() -> dict[str, list[SimpleNamespace]]:
     return {"categories": [category]}
 
 
-def charter(module: ModuleType) -> SimpleNamespace:
-    generate = next(
-        value.generate_charts
+def charter(module: ModuleType) -> Any:
+    cls: Any = next(
+        value
         for value in vars(module).values()
         if isinstance(value, type) and hasattr(value, "generate_charts")
     )
-    return SimpleNamespace(generate_charts=lambda *args: generate(None, *args))
+    return cls.__new__(cls)
 
 
 def test_script_imports_and_skips_charts_when_matplotlib_is_missing(

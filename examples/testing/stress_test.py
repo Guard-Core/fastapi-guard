@@ -55,6 +55,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import aiohttp
@@ -682,12 +683,19 @@ class FastAPIGuardStressTest:
             print("Skipping chart generation (CI mode detected)")
             return
 
-        try:
-            import matplotlib.pyplot as plt
-        except ImportError:
+        if sys.version_info >= (3, 11):
+            try:
+                import matplotlib.pyplot as plt
+            except ImportError:
+                print(CHARTS_NEED_MATPLOTLIB)
+                return
+            self._draw_charts(plt, results, filename_prefix)
+        else:
             print(CHARTS_NEED_MATPLOTLIB)
-            return
 
+    def _draw_charts(
+        self, plt: ModuleType, results: dict[str, Any], filename_prefix: str
+    ) -> None:
         categories = [s.category.replace("_", "\n") for s in results["categories"]]
         blocked = [s.blocked_count for s in results["categories"]]
         passed = [s.passed_count for s in results["categories"]]
