@@ -58,7 +58,12 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
-import matplotlib.pyplot as plt
+
+CHARTS_NEED_MATPLOTLIB = (
+    "Charts skipped: they need matplotlib, which is installed only on "
+    "Python 3.11 and newer because the only pillow without open advisories "
+    "needs 3.11"
+)
 
 
 def ensure_results_dir(test_type: str = "standard") -> str:
@@ -675,6 +680,12 @@ class FastAPIGuardStressTest:
         # Skip chart generation if 'ci' in filename (for CI environments)
         if "ci" in filename_prefix.lower():
             print("Skipping chart generation (CI mode detected)")
+            return
+
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            print(CHARTS_NEED_MATPLOTLIB)
             return
 
         categories = [s.category.replace("_", "\n") for s in results["categories"]]
