@@ -188,6 +188,11 @@ warn_unreachable = true
 exclude = ["vulture_whitelist.py", ".venv", "manual_testing", "ZZZ", "tests/live_smoke/stack/app"]
 
 
+[[tool.mypy.overrides]]
+# matplotlib is installed only on Python 3.11 and newer (the stress test imports it where it draws charts)
+module = ["matplotlib", "matplotlib.*"]
+ignore_missing_imports = true
+
 [tool.pymarkdown.system]
 exclude_path = ".venv,.git,.github,data,tests,.claude,CLAUDE.md,.cursor,.kiro,ZZZ"
 
