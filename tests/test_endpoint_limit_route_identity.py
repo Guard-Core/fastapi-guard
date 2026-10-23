@@ -22,7 +22,7 @@ def _handler_factory(name: str) -> Callable[[], Any]:
     return handler
 
 
-def _app(limits: dict[str, tuple[int, int]]) -> FastAPI:
+def _app(limits: dict[str, tuple[int, int]], **config_options: Any) -> FastAPI:
     app = FastAPI()
     config = SecurityConfig(
         enable_redis=False,
@@ -31,6 +31,7 @@ def _app(limits: dict[str, tuple[int, int]]) -> FastAPI:
         rate_limit=1000,
         endpoint_rate_limits=limits,
         passive_mode=False,
+        **config_options,
     )
     app.add_middleware(SecurityMiddleware, config=config)
 
@@ -93,9 +94,14 @@ def test_login_and_login_slash_keys_are_both_enforced() -> None:
 
 
 def test_key_the_router_cannot_resolve_still_limits_through_the_fallback() -> None:
-    app = _app({"//login/.": (1, 60)})
+    app = _app({"//login/.": (1, 60)}, fail_on_misconfiguration=False)
 
     assert _statuses(app, ["/login", "/login"]) == [200, 429]
+
+
+def test_key_the_router_cannot_resolve_refuses_to_start_by_default() -> None:
+    with pytest.raises(ValueError, match="has a dot segment"):
+        _app({"//login/.": (1, 60)})
 
 
 def _middleware(app: Any) -> SecurityMiddleware:

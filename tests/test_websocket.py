@@ -363,6 +363,7 @@ def test_guard_websocket_skips_rate_limit_when_client_is_whitelisted() -> None:
         rate_limit=1,
         rate_limit_window=60,
         whitelist=("127.0.0.1",),
+        whitelist_access_only=False,
     )
     app = _app_with_websocket(config)
 
@@ -376,6 +377,28 @@ requires_whitelist_access_only = pytest.mark.skipif(
     "whitelist_access_only" not in SecurityConfig.model_fields,
     reason="the installed guard-core predates whitelist_access_only",
 )
+
+
+def test_ws_rate_limits_a_whitelisted_client_by_default() -> None:
+    config = SecurityConfig(
+        enable_redis=False,
+        enable_penetration_detection=False,
+        enable_rate_limiting=True,
+        rate_limit=1,
+        rate_limit_window=60,
+        whitelist=("127.0.0.1",),
+    )
+    app = _app_with_websocket(config)
+
+    with TestClient(app, client=("127.0.0.1", 12347)) as client:
+        with client.websocket_connect("/ws") as websocket:
+            assert websocket.receive_text() == "connected"
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect("/ws"):
+                pass
+
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "Rate limit exceeded"
 
 
 @requires_whitelist_access_only
@@ -1022,12 +1045,29 @@ def test_guard_websocket_skips_detection_for_whitelisted_ip() -> None:
         enable_redis=False,
         enable_penetration_detection=True,
         whitelist=("127.0.0.1",),
+        whitelist_access_only=False,
     )
     app = _app_with_websocket(config)
 
     with TestClient(app, client=("127.0.0.1", 20011)) as client:
         with client.websocket_connect("/ws?q=<script>alert(1)</script>") as websocket:
             assert websocket.receive_text() == "connected"
+
+
+def test_ws_scans_a_whitelisted_client_by_default() -> None:
+    config = SecurityConfig(
+        enable_redis=False,
+        enable_penetration_detection=True,
+        whitelist=("127.0.0.1",),
+    )
+    app = _app_with_websocket(config)
+
+    with TestClient(app, client=("127.0.0.1", 20015)) as client:
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect("/ws?q=<script>alert(1)</script>"):
+                pass
+
+    assert exc_info.value.code == WS_CLOSE_SUSPICIOUS_ACTIVITY.code
 
 
 @requires_whitelist_access_only

@@ -384,8 +384,11 @@ async def test_authentication_decorators_unit(security_config: SecurityConfig) -
     assert route_config6.required_headers["X-Other"] == "required"
 
 
-async def test_authentication_failures_blocked(auth_decorator_app: FastAPI) -> None:
+async def test_authentication_failures_blocked(
+    auth_decorator_app: FastAPI, security_config: SecurityConfig
+) -> None:
     """Test that authentication failures are properly blocked and logged."""
+    security_config.ban_on_hostile_signals = False
     async with AsyncClient(
         transport=ASGITransport(app=auth_decorator_app), base_url="http://test"
     ) as client:
@@ -420,6 +423,31 @@ async def test_authentication_failures_blocked(auth_decorator_app: FastAPI) -> N
         )
         assert response.status_code == 401
         assert "Authentication required" in response.text
+
+
+async def test_authentication_failures_reach_the_ban_by_default(
+    auth_decorator_app: FastAPI,
+) -> None:
+    """Repeated failed authentication from one IP is a hostile signal and bans it."""
+    async with AsyncClient(
+        transport=ASGITransport(app=auth_decorator_app), base_url="http://test"
+    ) as client:
+        statuses = [
+            (
+                await client.get(
+                    "/auth-default",
+                    headers={"X-Forwarded-For": "8.8.8.8", **extra},
+                )
+            ).status_code
+            for extra in (
+                {},
+                {"Authorization": "Invalid token-format"},
+                {"Authorization": "Invalid token-format"},
+                {"Authorization": "Invalid token-format"},
+            )
+        ]
+
+    assert statuses == [401, 401, 401, 403]
 
 
 async def test_auth_passive_mode(security_config: SecurityConfig) -> None:
