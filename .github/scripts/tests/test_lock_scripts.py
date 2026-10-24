@@ -166,6 +166,78 @@ def test_a_fix_inside_the_cooldown_says_when_it_becomes_lockable(
     assert "inside the 7 day cooldown, lockable from" in decision["issues"][0]["reason"]
 
 
+def last_affected_only(
+    monkeypatch: pytest.MonkeyPatch, releases: list[str], ranges: list[str]
+) -> None:
+    ADVISORIES[("nltk", "3.9.1")] = ("GHSA-8mgp-746c-j5xp", [])
+    monkeypatch.setattr(lock_security, "affected_ranges", lambda g, p: ranges)
+    monkeypatch.setattr(lock_security, "released_versions", lambda p: releases)
+
+
+@pytest.fixture
+def no_fix_version() -> Any:
+    yield
+    ADVISORIES.pop(("nltk", "3.9.1"), None)
+
+
+def test_a_last_affected_only_advisory_opens_a_pr_at_the_release_above_it(
+    tmp_path: Path,
+    uv: FakeUv,
+    monkeypatch: pytest.MonkeyPatch,
+    no_fix_version: None,
+) -> None:
+    last_affected_only(
+        monkeypatch, ["3.9.1", "3.10.3", "3.10.4", "3.10.5"], ["<= 3.10.3"]
+    )
+    released = datetime.now(timezone.utc) - timedelta(days=9)
+    monkeypatch.setattr(lock_security, "upload_time", lambda package, version: released)
+    out = tmp_path / "uv.lock.new"
+    decision = lock_security.decide(make_repo(tmp_path, nltk="3.9.1"), out)
+    assert decision["action"] == "pr"
+    assert decision["fixed"] == [{"package": "nltk", "from": "3.9.1", "to": "3.10.4"}]
+    assert read_versions(out) == {"nltk": "3.10.4"}
+
+
+def test_a_last_affected_only_advisory_with_a_young_release_names_version_and_date(
+    tmp_path: Path,
+    uv: FakeUv,
+    monkeypatch: pytest.MonkeyPatch,
+    no_fix_version: None,
+) -> None:
+    last_affected_only(monkeypatch, ["3.10.3", "3.10.4"], ["<= 3.10.3"])
+    uv.unlockable.add("nltk")
+    released = datetime.now(timezone.utc) - timedelta(days=2)
+    monkeypatch.setattr(lock_security, "upload_time", lambda package, version: released)
+    decision = lock_security.decide(make_repo(tmp_path, nltk="3.9.1"), None)
+    assert decision["action"] == "issue"
+    reason = decision["issues"][0]["reason"]
+    assert "nltk==3.10.4" in reason
+    assert f"lockable from {released + timedelta(days=7):%Y-%m-%d %H:%M} UTC" in reason
+
+
+def test_a_last_affected_only_advisory_with_no_release_outside_it_stays_an_issue(
+    tmp_path: Path,
+    uv: FakeUv,
+    monkeypatch: pytest.MonkeyPatch,
+    no_fix_version: None,
+) -> None:
+    last_affected_only(monkeypatch, ["3.9.1", "3.10.3"], ["<= 3.10.3"])
+    decision = lock_security.decide(make_repo(tmp_path, nltk="3.9.1"), None)
+    assert decision["action"] == "issue"
+    assert (
+        "no published version above 3.9.1 fixes it" in decision["issues"][0]["reason"]
+    )
+
+
+def test_in_range_reads_github_range_syntax() -> None:
+    assert lock_security.in_range("3.10.3", "<= 3.10.3")
+    assert not lock_security.in_range("3.10.4", "<= 3.10.3")
+    assert lock_security.in_range("1.5", ">= 1.0, < 2.0")
+    assert not lock_security.in_range("2.0", ">= 1.0, < 2.0")
+    assert not lock_security.in_range("2.0.0", "< 2.0")
+    assert lock_security.in_range("1.0", "garbage")
+
+
 def test_a_fix_that_moves_other_packages_down_is_refused(
     tmp_path: Path, uv: FakeUv
 ) -> None:

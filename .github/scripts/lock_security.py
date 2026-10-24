@@ -2,8 +2,10 @@
 
 Reads the committed uv.lock and never compares with PyPI's latest.
 It audits the lock with pip-audit, takes first-party releases inside the
-allowed range, moves each vulnerable package to its first fixed version and
-reports every advisory whose fix cannot be locked. Only a hit re-locks.
+allowed range, moves each vulnerable package to its first fixed version (or,
+when an advisory only names a last affected version, the lowest release
+outside its ranges) and reports every advisory whose fix cannot be locked.
+Only a hit re-locks.
 """
 
 from __future__ import annotations
@@ -155,6 +157,81 @@ def first_fixed_version(vulns: list[dict[str, Any]]) -> str | None:
     return max(firsts, key=version_key)
 
 
+def affected_ranges(ghsa: str, package: str) -> list[str] | None:
+    """Affected ranges of one package in a GitHub advisory, None when unreadable."""
+    url = f"https://api.github.com/advisories/{ghsa}"
+    try:
+        with urllib.request.urlopen(url, timeout=20) as response:
+            entries = json.load(response)["vulnerabilities"]
+    except (OSError, ValueError, KeyError):
+        return None
+    wanted = re.sub(r"[-_.]+", "-", package).lower()
+    return [
+        e["vulnerable_version_range"]
+        for e in entries
+        if re.sub(r"[-_.]+", "-", e["package"]["name"]).lower() == wanted
+        and e.get("vulnerable_version_range")
+    ]
+
+
+def released_versions(package: str) -> list[str]:
+    """Final releases of a package on PyPI with a file that is not yanked."""
+    url = f"https://pypi.org/pypi/{package}/json"
+    try:
+        with urllib.request.urlopen(url, timeout=20) as response:
+            releases = json.load(response)["releases"]
+    except (OSError, ValueError, KeyError):
+        return []
+    return [
+        v
+        for v, files in releases.items()
+        if re.fullmatch(r"\d+(?:\.\d+)*", v) and any(not f.get("yanked") for f in files)
+    ]
+
+
+def padded_key(version: str) -> tuple[int, ...]:
+    return version_key(version) + (0,) * 8
+
+
+def in_range(version: str, affected: str) -> bool:
+    """True when version satisfies a GitHub range such as '>= 1.0, < 2.0'."""
+    tests = {
+        "<=": lambda a, b: a <= b,
+        ">=": lambda a, b: a >= b,
+        "<": lambda a, b: a < b,
+        ">": lambda a, b: a > b,
+        "=": lambda a, b: a == b,
+    }
+    for part in affected.split(","):
+        operator, _, bound = part.strip().partition(" ")
+        if operator not in tests or not bound:
+            return True  # unreadable bound: treat the version as affected
+        if not tests[operator](padded_key(version), padded_key(bound.strip())):
+            return False
+    return True
+
+
+def first_unaffected_version(vulns: list[dict[str, Any]]) -> str | None:
+    """Lowest release above the installed one outside every advisory's ranges.
+
+    Used when an advisory names a last affected version and no fixed one.
+    """
+    package, installed = vulns[0]["package"], vulns[0]["installed"]
+    ranges: list[str] = []
+    for vuln in vulns:
+        found = affected_ranges(vuln["ghsa"], package)
+        if not found:
+            return None
+        ranges.extend(found)
+    candidates = [
+        v
+        for v in released_versions(package)
+        if padded_key(v) > padded_key(installed)
+        and not any(in_range(v, r) for r in ranges)
+    ]
+    return min(candidates, key=padded_key) if candidates else None
+
+
 def cooldown_days(pyproject: Path) -> int | None:
     match = re.search(
         r'^exclude-newer\s*=\s*"(\d+) days?"', pyproject.read_text(), re.M
@@ -256,7 +333,7 @@ def decide(repo: Path, lock_out: Path | None) -> dict[str, Any]:
         for vuln in remaining:
             by_package.setdefault((vuln["package"], vuln["installed"]), []).append(vuln)
         for (package, installed), vulns in sorted(by_package.items()):
-            target = first_fixed_version(vulns)
+            target = first_fixed_version(vulns) or first_unaffected_version(vulns)
             reason = f"no published version above {installed} fixes it"
             if target is not None:
                 failure = try_fix(scratch, package, target, cooldown)
