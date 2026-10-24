@@ -18,7 +18,7 @@ jobs:
             To help us triage quickly, please make sure your report includes:
             - A clear reproduction (a short FastAPI app or failing test is ideal)
             - Output of `python --version && uv --version`
-            - The Python version range supported (`>=3.10,<3.15`) and which version you're on
+            - The Python version range supported (`>=3.10,<3.16`) and which version you're on
             - `pip show fastapi guard-core fastapi-guard` (or equivalent) so we can see installed versions
             - Operating system, ASGI server (uvicorn / hypercorn / daphne), and Redis configuration if relevant
             - Logs / tracebacks / middleware ordering details

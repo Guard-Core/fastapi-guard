@@ -79,7 +79,8 @@ async def _drain(response: Response) -> bytes:
             sent.append(message.get("body", b""))
 
     async def receive() -> Any:
-        return {"type": "http.disconnect"}
+        # Starlette 1.8 stops a FileResponse once receive() reports a disconnect.
+        await asyncio.Event().wait()
 
     await response({"type": "http", "method": "GET", "headers": []}, receive, send)
     return b"".join(sent)

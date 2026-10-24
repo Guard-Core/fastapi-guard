@@ -28,7 +28,7 @@ uv add fastapi-guard                # or: pip install fastapi-guard
 pip install "fastapi-guard[agent]"  # optional: guard-agent SaaS telemetry
 ```
 
-The import package is `guard` (distribution name `fastapi-guard`). Supports Python 3.10-3.14.
+The import package is `guard` (distribution name `fastapi-guard`). Supports Python 3.10-3.15.
 
 ## Setup
 

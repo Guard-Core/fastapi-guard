@@ -77,10 +77,9 @@ jobs:
       - run: uv run pre-commit run --all-files
 
   test:
-    name: test (${{ matrix.python-version }}${{ matrix.informational && ', informational' || '' }})
+    name: test (${{ matrix.python-version }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    continue-on-error: ${{ matrix.informational == true }}
     env:
       # uv follows .python-version (3.10) unless told otherwise, so the matrix CPython was set up and never used.
       UV_PYTHON: ${{ matrix.python-version }}
@@ -104,11 +103,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
-        include:
-          # Informational until pydantic-core ships a 3.15 wheel (LEDGER 6.69): a red 3.15 job never fails the run.
-          - python-version: '3.15'
-            informational: true
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
 
     steps:
       - name: Checkout code
@@ -118,7 +113,6 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-          allow-prereleases: true
 
       - name: Install uv
         run: |
@@ -141,7 +135,6 @@ jobs:
           COVERAGE_FILE=coverage-py${{ matrix.python-version }}.data IPINFO_TOKEN='${{ secrets.IPINFO_TOKEN || 'test_token' }}' REDIS_URL='redis://localhost:6379' REDIS_PREFIX='test:fastapi_guard:' uv run pytest -v --cov=guard --cov-branch
 
       - name: Upload coverage data
-        if: ${{ !matrix.informational }}
         uses: actions/upload-artifact@v7
         with:
           name: coverage-data-py${{ matrix.python-version }}
@@ -189,7 +182,7 @@ jobs:
 
       - name: Require the data of every matrix version
         run: |
-          for v in 3.10 3.11 3.12 3.13 3.14; do
+          for v in 3.10 3.11 3.12 3.13 3.14 3.15; do
             test -f "coverage-data/coverage-py$v.data" || { echo "::error::no coverage data for Python $v"; exit 1; }
           done
 

@@ -66,7 +66,7 @@ make stop
 . Testing
 -------
 
-The project supports Python 3.10, 3.11, 3.12, 3.13 and 3.14. Tests are run using Docker containers:
+The project supports Python 3.10, 3.11, 3.12, 3.13, 3.14 and 3.15. Tests are run using Docker containers:
 
 ```bash
 # Run tests with the default Python version (3.10)

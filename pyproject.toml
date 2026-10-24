@@ -8,7 +8,7 @@ authors = [
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.10,<3.16"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Framework :: FastAPI",
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Internet :: WWW/HTTP :: WSGI :: Middleware",
     "Topic :: Security",
     "Topic :: Software Development :: Libraries :: Python Modules",
