@@ -174,7 +174,7 @@ jobs:
           UV_PYTHON: '3.10'
           UV_PYTHON_DOWNLOADS: never
         run: |
-          uv sync --extra dev
+          uv sync --locked --extra dev
 
       - name: Show the coverage configuration the combine reads
         run: |
