@@ -2,7 +2,7 @@ import logging
 from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from typing import Any, NamedTuple, cast
 
-from guard_core import check_rate_limit_by_ip, ip_ban_manager, is_ip_allowed
+from guard_core import check_rate_limit_by_ip, is_ip_allowed
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.implementations.emergency_mode import EmergencyModeCheck
 from guard_core.core.checks.implementations.suspicious_activity import (
@@ -15,6 +15,7 @@ from guard_core.core.routing import RouteConfigResolver, RoutingContext
 from guard_core.core.validation import RequestValidator, ValidationContext
 from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
@@ -311,7 +312,7 @@ async def _check_ban(
     guard_request: GuardRequest, config: SecurityConfig, client_ip: str
 ) -> None:
     is_banned = await _guarded_redis_call(
-        ip_ban_manager.is_ip_banned(client_ip),
+        ip_ban_manager_for(config).is_ip_banned(client_ip),
         config,
         "ip_ban_manager.is_ip_banned",
         default=False,

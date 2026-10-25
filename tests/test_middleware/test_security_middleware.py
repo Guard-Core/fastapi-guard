@@ -10,10 +10,12 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
 from guard_core.detection_result import DetectionResult
 from guard_core.exceptions import GuardRedisError
-from guard_core.handlers.cloud_handler import cloud_handler
+from guard_core.handlers.cloud_handler import cloud_handler_for
+from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.ipinfo_handler import IPInfoManager
 from guard_core.handlers.ratelimit_handler import rate_limit_handler
 from guard_core.handlers.redis_handler import redis_handler
+from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.models import SecurityConfig
 from guard_core.protocols import GuardRequest, GuardResponse
 from guard_core.utils import IpAccessResult
@@ -704,7 +706,9 @@ async def test_cloud_ip_blocking() -> None:
     async def read_root() -> dict[str, str]:
         return {"message": "Hello World"}
 
-    with patch.object(cloud_handler, "is_cloud_ip", return_value=True):
+    with patch.object(
+        cloud_handler_for(config, bind=True), "is_cloud_ip", return_value=True
+    ):
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -713,7 +717,9 @@ async def test_cloud_ip_blocking() -> None:
             )
             assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    with patch.object(cloud_handler, "is_cloud_ip", return_value=False):
+    with patch.object(
+        cloud_handler_for(config, bind=True), "is_cloud_ip", return_value=False
+    ):
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -730,9 +736,8 @@ async def test_cloud_ip_refresh() -> None:
     )
     middleware = SecurityMiddleware(app, config=config)
 
-    with patch(
-        "guard_core.handlers.cloud_handler.cloud_handler.is_cloud_ip",
-        return_value=False,
+    with patch.object(
+        cloud_handler_for(config, bind=True), "is_cloud_ip", return_value=False
     ) as mock_is_cloud_ip:
 
         async def receive() -> dict[str, str | bytes]:
@@ -793,8 +798,8 @@ async def test_excluded_paths() -> None:
         assert response.status_code == status.HTTP_200_OK
 
 
-async def _await_scheduled_cloud_refresh() -> None:
-    task = cloud_handler._refresh_task
+async def _await_scheduled_cloud_refresh(config: SecurityConfig) -> None:
+    task = cloud_handler_for(config)._refresh_task
     if task is not None and not task.done():
         await task
 
@@ -809,13 +814,18 @@ async def test_cloud_ip_blocking_with_refresh() -> None:
         enable_penetration_detection=False,
     )
 
+    cloud_handler_for(config, bind=True)
     middleware = SecurityMiddleware(app, config=config)
     middleware.last_cloud_ip_refresh = int(time.time() - 3700)
 
     mock_refresh = AsyncMock()
     with (
-        patch.object(cloud_handler, "refresh", mock_refresh),
-        patch.object(cloud_handler, "is_cloud_ip", return_value=False),
+        patch.object(
+            cloud_handler_for(config, bind=True), "refresh_async", mock_refresh
+        ),
+        patch.object(
+            cloud_handler_for(config, bind=True), "is_cloud_ip", return_value=False
+        ),
     ):
 
         async def receive() -> dict[str, str | bytes]:
@@ -842,7 +852,7 @@ async def test_cloud_ip_blocking_with_refresh() -> None:
             return Response("OK")
 
         await middleware.dispatch(request, mock_call_next)
-        await _await_scheduled_cloud_refresh()
+        await _await_scheduled_cloud_refresh(config)
         mock_refresh.assert_called_once()
 
         mock_refresh.reset_mock()
@@ -858,11 +868,15 @@ async def test_cloud_ip_blocking_with_refresh() -> None:
 
     mock_refresh_async = AsyncMock()
     with (
-        patch.object(cloud_handler, "refresh_async", mock_refresh_async),
-        patch.object(cloud_handler, "is_cloud_ip", return_value=False),
+        patch.object(
+            cloud_handler_for(config, bind=True), "refresh_async", mock_refresh_async
+        ),
+        patch.object(
+            cloud_handler_for(config, bind=True), "is_cloud_ip", return_value=False
+        ),
     ):
         await middleware.dispatch(request, mock_call_next)
-        await _await_scheduled_cloud_refresh()
+        await _await_scheduled_cloud_refresh(config)
         assert mock_refresh_async.await_count >= 1
 
 
@@ -875,8 +889,10 @@ async def test_refresh_cloud_ips_without_any_cloud() -> None:
     )
     middleware = SecurityMiddleware(app, config=config)
     with (
-        patch.object(cloud_handler, "refresh_async") as mock_refresh_async,
-        patch.object(cloud_handler, "refresh") as mock_refresh,
+        patch.object(
+            cloud_handler_for(config, bind=True), "refresh_async"
+        ) as mock_refresh_async,
+        patch.object(cloud_handler_for(config, bind=True), "refresh") as mock_refresh,
     ):
         await middleware.refresh_cloud_ip_ranges()
         mock_refresh_async.assert_not_called()
@@ -1010,7 +1026,9 @@ async def test_cloud_ip_blocking_with_logging() -> None:
         return Response("OK")
 
     with (
-        patch.object(cloud_handler, "is_cloud_ip", return_value=True),
+        patch.object(
+            cloud_handler_for(config, bind=True), "is_cloud_ip", return_value=True
+        ),
         patch(
             "guard_core.core.checks.implementations.cloud_provider.log_activity"
         ) as mock_log,
@@ -1059,7 +1077,9 @@ async def test_cloud_ip_blocking_with_logging() -> None:
         )
 
     with (
-        patch.object(cloud_handler, "is_cloud_ip", return_value=False),
+        patch.object(
+            cloud_handler_for(config, bind=True), "is_cloud_ip", return_value=False
+        ),
         patch(
             "guard_core.core.checks.implementations.ip_security.check_ip_access",
             new_callable=AsyncMock,
@@ -1106,15 +1126,16 @@ async def test_redis_initialization(security_config_redis: SecurityConfig) -> No
     # Mock external handlers - patch at module level where they're imported
     with (
         patch.object(middleware.redis_handler, "initialize") as redis_init,
-        patch(
-            "guard_core.handlers.cloud_handler.cloud_handler.initialize_redis"
+        patch.object(
+            cloud_handler_for(security_config_redis, bind=True), "initialize_redis"
         ) as cloud_init,
-        patch(
-            "guard_core.handlers.ipban_handler.ip_ban_manager.initialize_redis"
+        patch.object(
+            ip_ban_manager_for(security_config_redis, bind=True), "initialize_redis"
         ) as ipban_init,
         patch.object(IPInfoManager, "initialize_redis") as ipinfo_init,
-        patch(
-            "guard_core.handlers.suspatterns_handler.sus_patterns_handler.initialize_redis"
+        patch.object(
+            sus_patterns_manager_for(security_config_redis, bind=True),
+            "initialize_redis",
         ) as sus_init,
         patch.object(
             middleware.handler_initializer.rate_limit_handler, "initialize_redis"
@@ -1147,21 +1168,25 @@ async def test_redis_initialization_without_country_rules_or_cloud(
     # Mock external handlers - patch at module level where they're imported
     with (
         patch.object(middleware.redis_handler, "initialize") as redis_init,
-        patch(
-            "guard_core.handlers.cloud_handler.cloud_handler.initialize_redis"
+        patch.object(
+            cloud_handler_for(security_config_redis, bind=True), "initialize_redis"
         ) as cloud_init,
-        patch(
-            "guard_core.handlers.ipban_handler.ip_ban_manager.initialize_redis"
+        patch.object(
+            ip_ban_manager_for(security_config_redis, bind=True), "initialize_redis"
         ) as ipban_init,
         patch.object(IPInfoManager, "initialize_redis") as ipinfo_init,
-        patch(
-            "guard_core.handlers.suspatterns_handler.sus_patterns_handler.initialize_redis"
+        patch.object(
+            sus_patterns_manager_for(security_config_redis, bind=True),
+            "initialize_redis",
         ) as sus_init,
         patch.object(
             middleware.handler_initializer.rate_limit_handler, "initialize_redis"
         ) as rate_init,
     ):
         await middleware.initialize()
+        lazy_init = middleware.handler_initializer._lazy_init_task
+        if lazy_init is not None:
+            await lazy_init
 
         # Verify Redis handler initialization
         redis_init.assert_awaited_once()
