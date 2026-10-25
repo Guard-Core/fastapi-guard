@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
-from guard_core.handlers.cloud_handler import cloud_handler
+from guard_core.handlers.cloud_handler import cloud_handler_for
 from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
 
@@ -15,6 +15,7 @@ async def decorator_app(security_config: SecurityConfig) -> FastAPI:
     """Create FastAPI app with decorator integration using existing security_config."""
     app = FastAPI()
 
+    cloud_handler_for(security_config, bind=True)
     security_config.trusted_proxies = ("127.0.0.1",)
     security_config.enable_penetration_detection = False
     security_config.whitelist = ()
@@ -141,9 +142,11 @@ async def test_country_access_control(
             assert response.status_code == expected_status, description
 
 
-async def test_cloud_provider_blocking(decorator_app: FastAPI) -> None:
+async def test_cloud_provider_blocking(
+    decorator_app: FastAPI, security_config: SecurityConfig
+) -> None:
     """Test cloud provider blocking decorator."""
-    with patch.object(cloud_handler, "is_cloud_ip") as mock_cloud:
+    with patch.object(cloud_handler_for(security_config), "is_cloud_ip") as mock_cloud:
         mock_cloud.return_value = False
         async with AsyncClient(
             transport=ASGITransport(app=decorator_app), base_url="http://test"
@@ -166,9 +169,11 @@ async def test_cloud_provider_blocking(decorator_app: FastAPI) -> None:
             assert response.status_code == 403
 
 
-async def test_block_all_clouds_default(decorator_app: FastAPI) -> None:
+async def test_block_all_clouds_default(
+    decorator_app: FastAPI, security_config: SecurityConfig
+) -> None:
     """Test block_clouds decorator with default behavior (blocks all providers)."""
-    with patch.object(cloud_handler, "is_cloud_ip") as mock_cloud:
+    with patch.object(cloud_handler_for(security_config), "is_cloud_ip") as mock_cloud:
         mock_cloud.return_value = False
         async with AsyncClient(
             transport=ASGITransport(app=decorator_app), base_url="http://test"
