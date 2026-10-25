@@ -37,7 +37,6 @@ security_config = SecurityConfig(
     trusted_proxy_depth=1,
     trust_x_forwarded_proto=True,
     ipinfo_token=os.environ.get("IPINFO_TOKEN"),
-    blocked_countries=frozenset({"XX"}),
     block_cloud_providers=frozenset({"AWS", "GCP", "Azure"}),
     blocked_user_agents=["badbot", "evil-crawler", "sqlmap"],
     enable_rate_limiting=True,

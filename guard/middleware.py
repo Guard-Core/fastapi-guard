@@ -97,9 +97,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
         self._configure_security_headers(config)
 
-        self.geo_ip_handler = None
-        if config.whitelist_countries or config.blocked_countries:
-            self.geo_ip_handler = config.geo_ip_handler
+        self.geo_ip_handler = config.geo_ip_handler
 
         self.redis_handler = None
         if config.enable_redis:
@@ -853,6 +851,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         self.handler_initializer.guard_decorator = self.guard_decorator
 
         await self.handler_initializer.initialize_redis_handlers()
+        self.geo_ip_handler = self.handler_initializer.geo_ip_handler
 
         await self.handler_initializer.initialize_agent_integrations()
 

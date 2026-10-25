@@ -3,6 +3,13 @@ Release Notes
 
 ___
 
+Unreleased
+----------
+
+- **Fixed** - **Country rules need no global rule.** The middleware and the WebSocket handshake check keep `config.geo_ip_handler` whenever one is configured and read back the handler the engine built from `ipinfo_token` for a route-level `block_countries`, `allow_countries` or `geo_rate_limit`, so those rules work without a global country rule. The examples no longer carry a placeholder `blocked_countries`.
+
+___
+
 v8.1.2 (2026-10-17)
 -------------------
 

@@ -1134,7 +1134,7 @@ async def test_redis_initialization(security_config_redis: SecurityConfig) -> No
 
 
 @pytest.mark.asyncio
-async def test_redis_initialization_without_ipinfo_and_cloud(
+async def test_redis_initialization_without_country_rules_or_cloud(
     security_config_redis: SecurityConfig,
 ) -> None:
     """Test Redis initialization in SecurityMiddleware"""
@@ -1169,7 +1169,7 @@ async def test_redis_initialization_without_ipinfo_and_cloud(
         # Verify component initializations with Redis
         cloud_init.assert_not_called()
         ipban_init.assert_awaited_once_with(middleware.redis_handler)
-        ipinfo_init.assert_not_called()
+        ipinfo_init.assert_awaited_once_with(middleware.redis_handler)
         sus_init.assert_awaited_once_with(middleware.redis_handler)
         rate_init.assert_awaited_once_with(middleware.redis_handler)
 

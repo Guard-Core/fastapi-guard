@@ -17,6 +17,7 @@ from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import UNKNOWN_CLIENT_IDENTITY, extract_client_ip, log_activity
@@ -143,11 +144,7 @@ class _WebSocketDetectionMiddleware:
         self.guard_response_factory: Any = None
         self.response_factory: Any = None
         self.guard_decorator: BaseSecurityDecorator | None = None
-        self.geo_ip_handler = (
-            config.geo_ip_handler
-            if config.whitelist_countries or config.blocked_countries
-            else None
-        )
+        self.geo_ip_handler = config.geo_ip_handler
         self.event_bus = SecurityEventBus(
             self.agent_handler, config, self.geo_ip_handler
         )
@@ -332,7 +329,10 @@ async def _check_ban(
 async def _check_ip_allowed(
     guard_request: GuardRequest, config: SecurityConfig, client_ip: str
 ) -> None:
-    if not await is_ip_allowed(client_ip, config, config.geo_ip_handler):
+    geo_ip_handler = config.geo_ip_handler
+    if not isinstance(geo_ip_handler, GeoIPHandler):
+        geo_ip_handler = None
+    if not await is_ip_allowed(client_ip, config, geo_ip_handler):
         await _deny_handshake(
             guard_request,
             config,
