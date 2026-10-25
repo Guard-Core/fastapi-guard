@@ -13,6 +13,7 @@ from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.events import SecurityEventBus
 from guard_core.core.routing import RouteConfigResolver, RoutingContext
 from guard_core.core.validation import RequestValidator, ValidationContext
+from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
@@ -141,6 +142,7 @@ class _WebSocketDetectionMiddleware:
         self.agent_handler: Any = None
         self.guard_response_factory: Any = None
         self.response_factory: Any = None
+        self.guard_decorator: BaseSecurityDecorator | None = None
         self.geo_ip_handler = (
             config.geo_ip_handler
             if config.whitelist_countries or config.blocked_countries
