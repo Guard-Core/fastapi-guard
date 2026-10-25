@@ -258,8 +258,9 @@ security_config = SecurityConfig(
     trusted_proxy_depth=2,
     trust_x_forwarded_proto=True,
     # Geographical Filtering (requires ipinfo_token OR custom implementation)
-    # geo_ip_handler=IPInfoManager("your_token_here"),  # Replace with actual token
-    # blocked_countries=["XX"],  # Example: block country code XX
+    # The country routes below need a GeoIP source: set IPINFO_TOKEN in the environment
+    ipinfo_token=os.environ.get("IPINFO_TOKEN"),
+    blocked_countries=frozenset({"XX"}),  # Example: block country code XX
     # whitelist_countries=[],  # Allow all countries by default
     # Cloud Provider Blocking
     block_cloud_providers=frozenset({"AWS", "GCP", "Azure"}),
