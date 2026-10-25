@@ -50,6 +50,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse, JSONResponse
+from guard_core.handlers.cloud_handler import cloud_handler_for
 from pydantic import BaseModel, ConfigDict, Field
 
 from guard import (
@@ -59,7 +60,6 @@ from guard import (
     SecurityConfig,
     SecurityDecorator,
     SecurityMiddleware,
-    cloud_handler,
     guard_websocket,
 )
 from guard.adapters import StarletteGuardResponse
@@ -1497,7 +1497,8 @@ async def toggle_emergency_mode(
 @guard_decorator.require_ip(whitelist=["127.0.0.1"])
 async def cloud_provider_status() -> MessageResponse:
     last_updated = {}
-    for provider, dt in cloud_handler.last_updated.items():
+    # `guard.cloud_handler` is the default app's; this app's own manager:
+    for provider, dt in cloud_handler_for(security_config).last_updated.items():
         last_updated[provider] = dt.isoformat() if dt else None
     return MessageResponse(
         message="Cloud provider IP range status",

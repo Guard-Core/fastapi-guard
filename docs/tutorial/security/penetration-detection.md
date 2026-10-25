@@ -106,10 +106,14 @@ Comprehensive Results
 The detection engine returns detailed information about threats:
 
 ```python
-from guard import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
+
+# The module-level `sus_patterns_handler` is the default app's manager. Take the
+# manager of the app you act on with the config that app was built with.
+patterns = sus_patterns_manager_for(security_config)
 
 # Direct detection with rich results
-result = await sus_patterns_handler.detect(
+result = await patterns.detect(
     content="SELECT * FROM users WHERE id=1 OR 1=1",
     ip_address="192.168.1.100",
     context="query_param",
@@ -132,7 +136,7 @@ Monitor and optimize detection performance:
 
 ```python
 # Get performance statistics
-stats = await sus_patterns_handler.get_performance_stats()
+stats = await patterns.get_performance_stats()
 print(f"Slow patterns: {stats['slow_patterns']}")
 print(f"Problematic patterns: {stats['problematic_patterns']}")
 ```
@@ -162,13 +166,17 @@ async def submit_data(request: Request):
 For more control, use the enhanced detection API:
 
 ```python
-from guard import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
+
+# The module-level `sus_patterns_handler` is the default app's manager. Take the
+# manager of the app you act on with the config that app was built with.
+patterns = sus_patterns_manager_for(security_config)
 
 
 @app.post("/api/secure")
 async def secure_endpoint(request: Request, data: dict):
     # Check request body with enhanced detection
-    result = await sus_patterns_handler.detect(
+    result = await patterns.detect(
         content=json.dumps(data), ip_address=request.client.host, context="request_body"
     )
 
@@ -260,21 +268,23 @@ Pattern Management
 Add or remove custom patterns:
 
 ```python
-from guard import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
+
+# The module-level `sus_patterns_handler` is the default app's manager. Take the
+# manager of the app you act on with the config that app was built with.
+patterns = sus_patterns_manager_for(security_config)
 
 # Add custom pattern
-await sus_patterns_handler.add_pattern(
+await patterns.add_pattern(
     r"(?i)exec\s*\(\s*['\"].*['\"]\s*\)",  # Detect exec() calls
     custom=True,
 )
 
 # Remove pattern
-await sus_patterns_handler.remove_pattern(
-    r"(?i)exec\s*\(\s*['\"].*['\"]\s*\)", custom=True
-)
+await patterns.remove_pattern(r"(?i)exec\s*\(\s*['\"].*['\"]\s*\)", custom=True)
 
 # Get all patterns
-patterns = await sus_patterns_handler.get_all_patterns()
+all_patterns = await patterns.get_all_patterns()
 ```
 
 Semantic Threshold Tuning
@@ -284,10 +294,10 @@ Adjust the semantic detection sensitivity:
 
 ```python
 # More strict (fewer false positives, might miss some attacks)
-await sus_patterns_handler.configure_semantic_threshold(0.9)
+await patterns.configure_semantic_threshold(0.9)
 
 # More lenient (catch more attacks, might have false positives)
-await sus_patterns_handler.configure_semantic_threshold(0.5)
+await patterns.configure_semantic_threshold(0.5)
 ```
 
 Component Status
@@ -296,7 +306,7 @@ Component Status
 Check which detection components are active:
 
 ```python
-status = await sus_patterns_handler.get_component_status()
+status = await patterns.get_component_status()
 # Returns: {
 #     "compiler": True,
 #     "preprocessor": True,

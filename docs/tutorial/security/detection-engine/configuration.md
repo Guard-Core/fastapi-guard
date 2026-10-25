@@ -224,16 +224,20 @@ dev_config = SecurityConfig(
 You can adjust certain settings at runtime:
 
 ```python
-from guard import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
+
+# The module-level objects are the default app's. Take the ones of the app
+# you act on with the config that app was built with.
+patterns = sus_patterns_manager_for(security_config)
 
 # Adjust semantic threshold dynamically
-await sus_patterns_handler.configure_semantic_threshold(0.8)
+await patterns.configure_semantic_threshold(0.8)
 
 # Add custom patterns
-await sus_patterns_handler.add_pattern(r"(?i)custom_threat_pattern", custom=True)
+await patterns.add_pattern(r"(?i)custom_threat_pattern", custom=True)
 
 # Check component status
-status = await sus_patterns_handler.get_component_status()
+status = await patterns.get_component_status()
 print(f"Components active: {status}")
 ```
 
@@ -275,7 +279,7 @@ FASTAPI_GUARD_DETECTION_SLOW_PATTERN_THRESHOLD=0.1
 
 ```python
 # Get performance statistics
-stats = await sus_patterns_handler.get_performance_stats()
+stats = await patterns.get_performance_stats()
 
 # Analyze configuration effectiveness
 if stats["summary"]["average_time"] > 0.05:
@@ -317,7 +321,7 @@ Before deploying to production:
 config.detection_semantic_threshold = 0.8
 
 # Review problematic patterns
-stats = await sus_patterns_handler.get_performance_stats()
+stats = await patterns.get_performance_stats()
 for pattern in stats["problematic_patterns"]:
     print(f"Review pattern: {pattern}")
 ```

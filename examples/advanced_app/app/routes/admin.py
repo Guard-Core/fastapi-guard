@@ -2,10 +2,11 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Body
+from guard_core.handlers.cloud_handler import cloud_handler_for
+from guard_core.handlers.ipban_handler import ip_ban_manager_for
 
 from app.models import MessageResponse, StatsResponse
 from app.security import guard, security_config
-from guard import cloud_handler, ip_ban_manager
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,8 @@ async def unban_ip_address(
     ip: str = Body(...),
     background_tasks: BackgroundTasks = BackgroundTasks(),  # noqa: B008
 ) -> MessageResponse:
-    await ip_ban_manager.unban_ip(ip)
+    # The module-level `ip_ban_manager` is the default app's. This app's own:
+    await ip_ban_manager_for(security_config).unban_ip(ip)
     background_tasks.add_task(logger.info, f"Unbanning IP: {ip}")
     return MessageResponse(
         message=f"IP {ip} has been unbanned",
@@ -132,7 +134,7 @@ async def toggle_emergency_mode(
 @guard.require_ip(whitelist=["127.0.0.1"])
 async def cloud_provider_status() -> MessageResponse:
     last_updated = {}
-    for provider, dt in cloud_handler.last_updated.items():
+    for provider, dt in cloud_handler_for(security_config).last_updated.items():
         last_updated[provider] = dt.isoformat() if dt else None
     return MessageResponse(
         message="Cloud provider IP range status",

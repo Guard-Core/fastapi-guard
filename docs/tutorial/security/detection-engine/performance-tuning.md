@@ -19,10 +19,14 @@ The Detection Engine's performance is influenced by several factors:
 Monitor these metrics to assess performance:
 
 ```python
-from guard import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
+
+# The module-level objects are the default app's. Take the ones of the app
+# you act on with the config that app was built with.
+patterns = sus_patterns_manager_for(security_config)
 
 # Get comprehensive performance statistics
-stats = await sus_patterns_handler.get_performance_stats()
+stats = await patterns.get_performance_stats()
 
 # Key metrics to monitor
 print(f"Average execution time: {stats['summary']['average_time']}s")
@@ -176,7 +180,7 @@ config = SecurityConfig(
 
 ```python
 # Monitor cache effectiveness
-compiler = sus_patterns_handler._compiler
+compiler = patterns._compiler
 cache_stats = compiler.get_cache_stats()
 
 if cache_stats["hit_rate"] < 0.8:
@@ -237,7 +241,7 @@ from datetime import datetime
 
 async def monitor_performance():
     while True:
-        stats = await sus_patterns_handler.get_performance_stats()
+        stats = await patterns.get_performance_stats()
 
         # Alert on performance degradation
         if stats["summary"]["average_time"] > 0.05:
@@ -260,7 +264,7 @@ async def monitor_performance():
 # Create performance metrics endpoint
 @app.get("/metrics/detection-engine")
 async def get_detection_metrics():
-    stats = await sus_patterns_handler.get_performance_stats()
+    stats = await patterns.get_performance_stats()
 
     return {
         "performance": {
@@ -288,7 +292,7 @@ problematic = monitor.get_problematic_patterns()
 for pattern in problematic:
     if pattern["timeout_rate"] > 0.05:
         # Remove or fix pattern
-        await sus_patterns_handler.remove_pattern(pattern["pattern"], custom=True)
+        await patterns.remove_pattern(pattern["pattern"], custom=True)
 
 # 2. Reduce concurrent execution
 config.detection_max_concurrent = 10  # Limit parallel checks
@@ -358,20 +362,20 @@ else:
 ```python
 # Weekly pattern review
 async def audit_patterns():
-    stats = await sus_patterns_handler.get_performance_stats()
+    stats = await patterns.get_performance_stats()
 
     # Remove ineffective patterns
     for pattern in stats["all_patterns"]:
         if pattern["match_rate"] < 0.0001 and pattern["age_days"] > 30:
             logger.info(f"Removing ineffective pattern: {pattern['pattern']}")
-            await sus_patterns_handler.remove_pattern(pattern["pattern"])
+            await patterns.remove_pattern(pattern["pattern"])
 
     # Optimize slow patterns
     for pattern in stats["slow_patterns"]:
         optimized = optimize_pattern(pattern["pattern"])
         if optimized != pattern["pattern"]:
-            await sus_patterns_handler.remove_pattern(pattern["pattern"])
-            await sus_patterns_handler.add_pattern(optimized, custom=True)
+            await patterns.remove_pattern(pattern["pattern"])
+            await patterns.add_pattern(optimized, custom=True)
 ```
 
 ### 2. Load Testing
@@ -395,7 +399,7 @@ async def load_test():
 
     for _ in range(1000):
         for content in test_contents:
-            task = sus_patterns_handler.detect(
+            task = patterns.detect(
                 content=content, ip_address="127.0.0.1", context="load_test"
             )
             tasks.append(task)
@@ -414,7 +418,7 @@ async def load_test():
 NEW_PATTERNS_ENABLED = False
 
 if NEW_PATTERNS_ENABLED:
-    await sus_patterns_handler.add_pattern(new_pattern, custom=True)
+    await patterns.add_pattern(new_pattern, custom=True)
 
 # Canary deployment
 if hash(request.client.host) % 100 < 10:  # 10% of users

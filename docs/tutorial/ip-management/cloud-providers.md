@@ -70,9 +70,13 @@ Cloud IP range update for AWS: +12 added, -3 removed
 You can also manually trigger a refresh:
 
 ```python
-from guard import cloud_handler
+from guard_core.handlers.cloud_handler import cloud_handler_for
 
-cloud_handler.refresh()
+# The module-level objects are the default app's. Take the ones of the app
+# you act on with the config that app was built with.
+clouds = cloud_handler_for(security_config)
+
+clouds.refresh()
 ```
 
 ___
@@ -83,10 +87,14 @@ Provider Status
 Track when each provider's IP ranges were last refreshed:
 
 ```python
-from guard import cloud_handler
+from guard_core.handlers.cloud_handler import cloud_handler_for
+
+# The module-level objects are the default app's. Take the ones of the app
+# you act on with the config that app was built with.
+clouds = cloud_handler_for(security_config)
 
 for provider in ("AWS", "GCP", "Azure"):
-    updated = cloud_handler.last_updated[provider]
+    updated = clouds.last_updated[provider]
     if updated:
         print(f"{provider}: last updated {updated.isoformat()}")
     else:
@@ -101,11 +109,15 @@ Custom IP Checking
 Check if an IP belongs to a cloud provider:
 
 ```python
-from guard import cloud_handler
+from guard_core.handlers.cloud_handler import cloud_handler_for
+
+# The module-level objects are the default app's. Take the ones of the app
+# you act on with the config that app was built with.
+clouds = cloud_handler_for(security_config)
 
 
 @app.get("/check-cloud/{ip}")
 async def check_cloud_ip(ip: str):
-    is_cloud = cloud_handler.is_cloud_ip(ip, providers={"AWS", "GCP", "Azure"})
+    is_cloud = clouds.is_cloud_ip(ip, providers={"AWS", "GCP", "Azure"})
     return {"ip": ip, "is_cloud": is_cloud}
 ```
