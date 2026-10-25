@@ -73,7 +73,8 @@ def _connect(
 ) -> str:
     with TestClient(app, client=(ip, 12345)) as client:
         with client.websocket_connect("/ws", headers=dict(headers or {})) as websocket:
-            return websocket.receive_text()
+            text: str = websocket.receive_text()
+            return text
 
 
 def _refused(
