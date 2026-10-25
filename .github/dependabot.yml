@@ -7,6 +7,10 @@ updates:
       day: "monday"
       time: "02:00"
       timezone: "UTC"
+    groups:
+      actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/"
