@@ -6,6 +6,8 @@ ___
 Unreleased
 ----------
 
+- **Breaking changes** - **A country rule or geo rate limit with no geo source now raises when the route is declared.** `@block_countries`, `@allow_countries` and `@geo_rate_limit` raise `ValueError` at import when the decorator's config has neither `geo_ip_handler` nor `ipinfo_token`, or has `ipinfo_token` without the `maxminddb` package and `aiohttp`, as long as `fail_on_misconfiguration` is `True` (the 5.0.0 engine default). Before, the app imported fine and the first request (or the lifespan hook, when wired) raised. `fail_on_misconfiguration=False` keeps starting and logs the warning once at initialization. A decorator built from a config without a geo source and paired with a middleware config that has `ipinfo_token` now raises at import: give the decorator's config the token. Needs the guard-core release that carries the declaration check.
+
 - **Fixed** - **Country rules need no global rule.** The middleware and the WebSocket handshake check keep `config.geo_ip_handler` whenever one is configured and read back the handler the engine built from `ipinfo_token` for a route-level `block_countries`, `allow_countries` or `geo_rate_limit`, so those rules work without a global country rule. The examples no longer carry a placeholder `blocked_countries`.
 
 ___

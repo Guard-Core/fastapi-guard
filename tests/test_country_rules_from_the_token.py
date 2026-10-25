@@ -56,7 +56,7 @@ def _app(config: SecurityConfig) -> FastAPI:
 
 def _status(app: FastAPI, path: str) -> int:
     with TestClient(app, client=(CLIENT_IP, 5555)) as client:
-        return client.get(path).status_code
+        return int(client.get(path).status_code)
 
 
 def test_global_blocked_countries_from_the_token_block(tmp_path: Path) -> None:
