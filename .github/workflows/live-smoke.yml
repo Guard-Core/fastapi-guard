@@ -13,6 +13,8 @@ jobs:
 
     env:
       LIVE_SMOKE_PROJECT: fastapi-guard-live-smoke
+      UV_PYTHON: '3.10'
+      UV_PYTHON_DOWNLOADS: never
 
     steps:
       - name: Checkout code

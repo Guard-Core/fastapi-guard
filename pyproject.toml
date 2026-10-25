@@ -76,15 +76,15 @@ dev = [
     "matplotlib; python_full_version >= '3.11'",
     "mypy",
     "numpy",
-    "pip-audit",
-    "pre-commit",
+    "pip-audit; python_version >= '3.11'",
+    "pre-commit; python_version >= '3.11'",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
     "pytest-mock",
     "radon",
     "ruff",
-    "safety",
+    "safety; python_version >= '3.11'",
     "types-cachetools",
     "types-requests",
     "vulture",
@@ -284,10 +284,12 @@ ignore = []
 
 [tool.uv]
 exclude-newer = "7 days"
+override-dependencies = ["filelock>=4.2.1"]
 
 [tool.uv.exclude-newer-package]
 guard-agent = "0 days"
 guard-core = "0 days"
+virtualenv = "2026-10-23T00:00:00Z"
 
 [tool.deptry]
 exclude = ["tests", ".venv", "vulture_whitelist.py", "examples", "docs", "manual_testing"]

@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 30
 
     env:
-      # uv follows .python-version (3.10) unless told otherwise, so the matrix CPython was set up and never used.
+      # uv follows .python-version (3.11) unless told otherwise, so the matrix CPython was set up and never used.
       UV_PYTHON: ${{ matrix.python-version }}
       UV_PYTHON_DOWNLOADS: never
       EXPECTED_PYTHON: ${{ matrix.python-version }}

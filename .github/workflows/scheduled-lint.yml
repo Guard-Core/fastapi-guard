@@ -17,8 +17,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Tooling job with no test run: 3.10 is the floor the lint and type config targets (mypy python_version 3.10); the test matrix owns the other versions.
-          python-version: '3.10'
+          # Tooling job with no test run: pre-commit and the lock tools need Python 3.11 (filelock 4.2.1, D-164), and mypy keeps python_version 3.10 in pyproject.toml; the test matrix owns the other versions.
+          python-version: '3.11'
 
       - name: Install uv
         run: pip install uv
@@ -36,8 +36,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Tooling job with no test run: 3.10 is the floor the lint and type config targets (mypy python_version 3.10); the test matrix owns the other versions.
-          python-version: '3.10'
+          # Tooling job with no test run: pre-commit and the lock tools need Python 3.11 (filelock 4.2.1, D-164), and mypy keeps python_version 3.10 in pyproject.toml; the test matrix owns the other versions.
+          python-version: '3.11'
 
       - name: Install the locked docs tools
         run: |
