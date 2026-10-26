@@ -278,7 +278,7 @@ async def _guarded_redis_call(
 def _close_for_check_response(
     response: GuardResponse, denial: WebSocketCloseReason
 ) -> WebSocketCloseReason:
-    if response.status_code in _CHECK_FAILED_STATUS_CODES:
+    if response.status_code == _DETECTION_CHECK_FAILED_STATUS_CODE:
         return WS_CLOSE_SECURITY_CHECK_FAILED
     return denial
 
