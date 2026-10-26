@@ -149,6 +149,10 @@ app = FastAPI(lifespan=make_lifespan(my_lifespan))
 app.add_middleware(SecurityMiddleware, config=config)
 ```
 
+State your lifespan yields (Starlette lifespan state) passes through `make_lifespan` and reaches `request.state`. A lifespan that yields nothing works too.
+
+On shutdown, both `guard_lifespan` and `make_lifespan` release this app's hold on its Redis connection. The connection closes when the last app on that Redis URL exits, never while another app still holds it.
+
 The host framework owns the lifespan: `guard_startup`
 ---------------------------------------------------------
 

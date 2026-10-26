@@ -1,6 +1,6 @@
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from typing import Any
+from typing import Any, overload
 
 from guard_core._utils.config_registry import REDIS_HANDLERS
 from guard_core.exceptions import GuardRedisError
@@ -127,12 +127,21 @@ async def _warm_middleware_or_adopt(middleware: SecurityMiddleware, app: Any) ->
     _register_state_from_middleware(middleware)
 
 
+async def _release_redis_hold(app: Any) -> None:
+    handler = _find_security_redis_handler(app)
+    if handler is not None:
+        await handler.close()
+
+
 @asynccontextmanager
 async def guard_lifespan(app: Any) -> AsyncIterator[None]:
     middleware = _find_security_middleware(app)
     if middleware is not None:
         await _warm_middleware_or_adopt(middleware, app)
-    yield
+    try:
+        yield
+    finally:
+        await _release_redis_hold(app)
 
 
 async def guard_startup(app: Any) -> None:
@@ -141,18 +150,38 @@ async def guard_startup(app: Any) -> None:
         await _warm_middleware_or_adopt(middleware, app)
 
 
+@overload
 def make_lifespan(
     existing_lifespan: Callable[[Any], AbstractAsyncContextManager[None]] | None = None,
-) -> Callable[[Any], AbstractAsyncContextManager[None]]:
+) -> Callable[[Any], AbstractAsyncContextManager[None]]: ...
+
+
+@overload
+def make_lifespan(
+    existing_lifespan: Callable[
+        [Any], AbstractAsyncContextManager[Mapping[str, object]]
+    ],
+) -> Callable[[Any], AbstractAsyncContextManager[Mapping[str, object]]]: ...
+
+
+def make_lifespan(
+    existing_lifespan: Callable[
+        [Any], AbstractAsyncContextManager[Mapping[str, object] | None]
+    ]
+    | None = None,
+) -> Callable[[Any], AbstractAsyncContextManager[Mapping[str, object] | None]]:
     @asynccontextmanager
-    async def combined(app: Any) -> AsyncIterator[None]:
+    async def combined(app: Any) -> AsyncIterator[Mapping[str, object] | None]:
         middleware = _find_security_middleware(app)
         if middleware is not None:
             await _warm_middleware_or_adopt(middleware, app)
-        if existing_lifespan is not None:
-            async with existing_lifespan(app):
-                yield
-        else:
-            yield
+        try:
+            if existing_lifespan is not None:
+                async with existing_lifespan(app) as state:
+                    yield state
+            else:
+                yield None
+        finally:
+            await _release_redis_hold(app)
 
     return combined
