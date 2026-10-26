@@ -8,7 +8,11 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from guard_core.handlers.cloud_handler import cloud_handler
-from guard_core.handlers.ipban_handler import reset_global_state
+from guard_core.handlers.ipban_handler import (
+    IPBanManager,
+    ip_ban_manager,
+    reset_global_state,
+)
 from guard_core.handlers.ipinfo_handler import IPInfoManager
 from guard_core.handlers.ratelimit_handler import rate_limit_handler
 from guard_core.handlers.redis_handler import RedisManager
@@ -92,6 +96,8 @@ def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
 @pytest.fixture(autouse=True)
 async def reset_state() -> AsyncGenerator[None, None]:
     # Reset IPBanManager
+    # A second app's initialize_redis makes its own manager the class singleton
+    IPBanManager._instance = ip_ban_manager
     await reset_global_state()
 
     # Reset SusPatternsManager
