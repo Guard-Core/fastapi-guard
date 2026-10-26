@@ -69,6 +69,12 @@ WS_CLOSE_USER_AGENT_NOT_ALLOWED = WebSocketCloseReason(
 )
 
 _DETECTION_CHECK_FAILED_STATUS_CODE = 500
+# guard-core 5.0.0 answers a Redis outage under fail_secure with 503 (D-188)
+_REDIS_OUTAGE_STATUS_CODE = 503
+_CHECK_FAILED_STATUS_CODES = (
+    _DETECTION_CHECK_FAILED_STATUS_CODE,
+    _REDIS_OUTAGE_STATUS_CODE,
+)
 
 WS_CLOSE_REASONS: tuple[WebSocketCloseReason, ...] = (
     WS_CLOSE_IP_BANNED,
@@ -223,7 +229,7 @@ async def _run_penetration_detection(
     )
     response = await pipeline.execute(guard_request)
     if response is not None:
-        if response.status_code == _DETECTION_CHECK_FAILED_STATUS_CODE:
+        if response.status_code in _CHECK_FAILED_STATUS_CODES:
             raise WebSocketException(
                 code=WS_CLOSE_SECURITY_CHECK_FAILED.code,
                 reason=WS_CLOSE_SECURITY_CHECK_FAILED.reason,
@@ -272,7 +278,7 @@ async def _guarded_redis_call(
 def _close_for_check_response(
     response: GuardResponse, denial: WebSocketCloseReason
 ) -> WebSocketCloseReason:
-    if response.status_code == _DETECTION_CHECK_FAILED_STATUS_CODE:
+    if response.status_code in _CHECK_FAILED_STATUS_CODES:
         return WS_CLOSE_SECURITY_CHECK_FAILED
     return denial
 
