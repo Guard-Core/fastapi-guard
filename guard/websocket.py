@@ -250,6 +250,13 @@ async def _guarded_redis_call(
             )
             return default
         logger.error("Error in %s: %s", check_name, exc, exc_info=True)
+        if config.passive_mode:
+            logger.warning(
+                "Skipping %s: Redis unavailable, admitting the handshake "
+                "(passive_mode=True)",
+                check_name,
+            )
+            return default
         if config.fail_secure:
             logger.warning(
                 "Blocking websocket handshake due to %s error in fail-secure mode",

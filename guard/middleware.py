@@ -1,12 +1,15 @@
 import asyncio
 import stat
+import threading
 import time
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Iterator
 from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import Request, Response
 from fastapi.encoders import jsonable_encoder
 from guard_core._utils.app_scope import hold_app_scope, release_app_scope
+from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.behavioral import BehavioralContext, BehavioralProcessor
 from guard_core.core.bypass import BypassContext, BypassHandler
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
@@ -54,6 +57,22 @@ def _static_file_is_served(static_files: StaticFiles, scope: Any) -> bool:
     except ValueError:
         return False
     return file_stat is not None and stat.S_ISREG(file_stat.st_mode)
+
+
+_INIT_OUTAGE_SAMPLE_WINDOW_SECONDS = 60
+_INIT_OUTAGE_SAMPLE_KEY = "redis_unavailable_during_initialization"
+_init_outage_lock = threading.Lock()
+_init_outage_samples: OrderedDict[str, float] = OrderedDict()
+
+
+def _sample_init_outage_line() -> bool:
+    return observe_sampled_key(
+        _init_outage_samples,
+        _init_outage_lock,
+        _INIT_OUTAGE_SAMPLE_KEY,
+        window=_INIT_OUTAGE_SAMPLE_WINDOW_SECONDS,
+        max_tracked=1,
+    )
 
 
 _FULL = (Match.FULL,)
@@ -721,6 +740,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         try:
             await self._ensure_initialized(request)
         except GuardRedisError as e:
+            if self.config.passive_mode:
+                if _sample_init_outage_line():
+                    self.logger.error(
+                        "Redis unavailable during initialization: %s "
+                        "(passive_mode=True, request passed through unguarded)",
+                        e,
+                    )
+                return await call_next(request)
             self.logger.error("Redis unavailable during initialization: %s", e)
             response = await self._redis_unavailable_response()
             self._inject_cors_headers(response, request.headers)
