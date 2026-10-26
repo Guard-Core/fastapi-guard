@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from httpx import ASGITransport, AsyncClient, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -491,6 +492,9 @@ class _FakeAgent:
 
     async def get_dynamic_rules(self) -> Any | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     async def health_check(self) -> bool:
         return True
