@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import Request, Response
 from fastapi.encoders import jsonable_encoder
+from guard_core._utils.app_scope import hold_app_scope, release_app_scope
 from guard_core.core.behavioral import BehavioralContext, BehavioralProcessor
 from guard_core.core.bypass import BypassContext, BypassHandler
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
@@ -725,6 +726,15 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             self._inject_cors_headers(response, request.headers)
             return response
 
+        token = hold_app_scope(self.config)
+        try:
+            return await self._dispatch_after_init(request, call_next)
+        finally:
+            release_app_scope(token)
+
+    async def _dispatch_after_init(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         guard_request = StarletteGuardRequest(request)
         wrapped_call_next = wrap_call_next(call_next, request)
         self._populate_guard_state(guard_request, request)

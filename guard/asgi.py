@@ -39,6 +39,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import Response
+from guard_core._utils.app_scope import hold_app_scope, release_app_scope
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.behavior_handler import config_to_rule
 from guard_core.handlers.security_headers_handler import security_headers_manager
@@ -257,6 +258,7 @@ class PureASGISecurityMiddleware:
             )
         else:
             downstream = _StreamedDownstream(self, scope, caching_receive)
+        token = hold_app_scope(engine.config)
         try:
             await self._screen_after_preflight(
                 request,
@@ -268,6 +270,7 @@ class PureASGISecurityMiddleware:
                 downstream,
             )
         finally:
+            release_app_scope(token)
             await downstream.close()
 
     async def _screen_after_preflight(
