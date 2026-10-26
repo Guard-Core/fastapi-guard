@@ -1,6 +1,7 @@
 import logging
 import os
 import uuid
+from typing import Any
 
 import pytest
 import redis
@@ -110,3 +111,30 @@ def test_passive_mode_logs_the_refusal_and_admits_the_handshake(
         with client.websocket_connect("/ws") as websocket:
             assert websocket.receive_text() == "connected"
     assert any("[PASSIVE MODE]" in r.getMessage() for r in caplog.records)
+
+
+def test_refused_cold_handshakes_construct_the_middleware_at_most_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built: list[int] = []
+    original = SecurityMiddleware.__init__
+
+    def counting_init(self: SecurityMiddleware, *args: Any, **kwargs: Any) -> None:
+        built.append(1)
+        original(self, *args, **kwargs)
+
+    config = _config(UNREACHABLE_REDIS_URL)
+    client = _client(_app(config))
+    monkeypatch.setattr(SecurityMiddleware, "__init__", counting_init)
+
+    _refusal(client)
+    _refusal(client)
+    config.redis_url = REDIS_URL
+    with client.websocket_connect("/ws") as websocket:
+        assert websocket.receive_text() == "connected"
+
+    assert len(built) <= 1
+    reader = redis.Redis.from_url(REDIS_URL)
+    for key in reader.scan_iter(match=f"{config.redis_prefix}*"):
+        reader.delete(key)
+    reader.close()

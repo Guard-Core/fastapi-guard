@@ -56,14 +56,35 @@ def _find_security_redis_handler(app: Any) -> RedisManager | None:
     return None
 
 
+def _built_security_middleware(app: Any) -> SecurityMiddleware | None:
+    node = getattr(app, "middleware_stack", None)
+    while node is not None:
+        if isinstance(node, SecurityMiddleware):
+            return node
+        node = getattr(node, "app", None)
+    return None
+
+
+def _cold_security_middleware(app: Any) -> SecurityMiddleware | None:
+    state = getattr(app, "state", None)
+    kept = getattr(state, "_guard_cold_security_middleware", None)
+    if isinstance(kept, SecurityMiddleware):
+        return kept
+    built = _find_security_middleware(app)
+    if built is not None and state is not None:
+        state._guard_cold_security_middleware = built
+    return built
+
+
 async def initialize_like_http_if_cold(app: Any, config: SecurityConfig) -> None:
     decorator = resolve_app_state_decorator(app)
     if get_state(config, decorator) is not None:
         return
-    middleware = _find_security_middleware(app)
+    middleware = _built_security_middleware(app) or _cold_security_middleware(app)
     if middleware is None:
         return
-    middleware.guard_decorator = decorator
+    if middleware.guard_decorator is None:
+        middleware.guard_decorator = decorator
     await middleware._ensure_initialized()
 
 
