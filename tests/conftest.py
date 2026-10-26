@@ -213,7 +213,7 @@ async def reset_rate_limiter() -> AsyncGenerator[None, None]:
     previous_redis = rate_limit.redis_handler
 
     await rate_limit.reset()
-    if previous_redis is not None:
+    if isinstance(previous_redis, RedisManager):
         await previous_redis.close()
 
     fresh_redis = RedisManager(config)

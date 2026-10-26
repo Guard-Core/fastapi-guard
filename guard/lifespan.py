@@ -50,8 +50,8 @@ def _find_security_redis_handler(app: Any) -> RedisManager | None:
     config = _find_security_config(app)
     if config is None or not config.enable_redis:
         return None
-    handler: RedisManager | None = REDIS_HANDLERS.lookup(config)
-    if handler is not None and handler._redis is not None:
+    handler = REDIS_HANDLERS.lookup(config)
+    if isinstance(handler, RedisManager) and handler._redis is not None:
         return handler
     return None
 
