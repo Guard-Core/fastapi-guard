@@ -55,6 +55,8 @@ With `passive_mode=True` no check refuses a handshake, exactly as no check refus
 
 If Redis is unreachable while `ip_ban_manager.is_ip_banned` or `check_rate_limit_by_ip` runs, `guard_websocket` follows the same `redis_fail_open` and `fail_secure` rules as the HTTP pipeline: `redis_fail_open=True` skips the failing check and treats it as passed; otherwise `fail_secure=True` (the default) refuses the handshake with close code `1013` (Try Again Later); otherwise the check is skipped and the error is logged.
 
+When `enable_redis=True` and the app's Redis handler is not connected yet, `guard_websocket` runs the same lazy initialization the HTTP `SecurityMiddleware` runs on its first request, so a WebSocket-first worker uses Redis for its rate limit like HTTP does. If Redis is unreachable at that moment, the handshake is refused with close code `1013` (Try Again Later) where HTTP answers `503` with `Retry-After`; `redis_fail_open=True` admits it with the in-memory store, and `passive_mode=True` logs the refusal and admits it. The next handshake retries, so no restart is needed once Redis is back. A WebSocket-only app (no HTTP route ever warms the middleware) should wire `make_lifespan()` into `FastAPI(lifespan=...)` so initialization happens at startup instead of on the first handshake.
+
 A client that passes `is_ip_allowed` while a global `SecurityConfig.whitelist` is configured is, by construction, a member of that whitelist; the rate-limit check is skipped for it entirely, mirroring the HTTP pipeline's own rule that a whitelisted request never reaches `RateLimitCheck`. A non-whitelisted client is still rejected by the allow-list check itself, before rate limiting would ever run.
 
 ___

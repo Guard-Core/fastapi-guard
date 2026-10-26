@@ -56,6 +56,17 @@ def _find_security_redis_handler(app: Any) -> RedisManager | None:
     return None
 
 
+async def initialize_like_http_if_cold(app: Any, config: SecurityConfig) -> None:
+    decorator = resolve_app_state_decorator(app)
+    if get_state(config, decorator) is not None:
+        return
+    middleware = _find_security_middleware(app)
+    if middleware is None:
+        return
+    middleware.guard_decorator = decorator
+    await middleware._ensure_initialized()
+
+
 def _register_state_from_middleware(middleware: SecurityMiddleware) -> None:
     register_state(
         middleware.config,

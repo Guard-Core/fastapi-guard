@@ -30,7 +30,11 @@ from starlette.websockets import WebSocket
 from guard._decorator_adoption import resolve_app_state_decorator
 from guard._middleware_state import get_state
 from guard.adapters import _join_repeated_header_lines
-from guard.lifespan import _find_security_config, _find_security_redis_handler
+from guard.lifespan import (
+    _find_security_config,
+    _find_security_redis_handler,
+    initialize_like_http_if_cold,
+)
 
 logger = logging.getLogger("guard_core")
 
@@ -415,6 +419,22 @@ async def _run_websocket_checks(
     await _run_penetration_detection(guard_request, config, app)
 
 
+async def _initialize_redis_like_http(
+    websocket: WebSocket, config: SecurityConfig, app: Any
+) -> None:
+    try:
+        await initialize_like_http_if_cold(app, config)
+    except GuardRedisError as exc:
+        logger.error("Redis unavailable during initialization: %s", exc)
+        await _deny_handshake(
+            _WebSocketGuardRequest(websocket),
+            config,
+            WS_CLOSE_EMERGENCY_MODE,
+            "redis_initialization",
+            f"Redis unavailable during initialization: {exc}",
+        )
+
+
 async def guard_websocket(websocket: WebSocket) -> None:
     app = websocket.scope.get("app")
     config = _find_security_config(app)
@@ -424,6 +444,9 @@ async def guard_websocket(websocket: WebSocket) -> None:
             "app.add_middleware(SecurityMiddleware, config=...)"
         )
     redis_handler = _find_security_redis_handler(app)
+    if redis_handler is None and config.enable_redis:
+        await _initialize_redis_like_http(websocket, config, app)
+        redis_handler = _find_security_redis_handler(app)
     await _run_websocket_checks(websocket, config, redis_handler, app)
 
 

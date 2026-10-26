@@ -615,7 +615,7 @@ def test_guard_websocket_sets_client_ip_on_state_for_trusted_proxy_chain() -> No
     assert captured["client_ip"] == "203.0.113.9"
 
 
-async def test_guard_websocket_falls_back_to_memory_when_manager_not_initialized() -> (
+async def test_guard_websocket_initializes_the_manager_when_it_is_not_initialized() -> (
     None
 ):
     RedisManager._instance = None
@@ -640,7 +640,7 @@ async def test_guard_websocket_falls_back_to_memory_when_manager_not_initialized
     assert exc_info.value.reason == "Rate limit exceeded"
     final_instance: RedisManager | None = RedisManager._instance
     assert final_instance is not None
-    assert final_instance._redis is None
+    assert final_instance._redis is not None
 
 
 async def test_guard_websocket_reuses_the_middlewares_redis_manager(
