@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from httpx import ASGITransport, AsyncClient, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -472,6 +473,27 @@ class _FakeAgent:
 
     async def send_metric(self, metric: Any) -> None:
         self.metrics.append(metric)
+
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
+        return None
+
+    async def send_event(self, event: Any) -> None:
+        return None
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
 
 
 def _metrics_app(config: SecurityConfig, agent: _FakeAgent) -> FastAPI:
