@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from guard_core.decorators import get_route_id
 from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
 
@@ -101,7 +102,7 @@ async def test_authentication_decorators_applied(
             )
 
             decorator = auth_decorator_app.state.guard_decorator
-            route_id = route.endpoint._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, f"{description} should have route config"
@@ -135,7 +136,7 @@ async def test_header_requirements_applied(
             )
 
             decorator = auth_decorator_app.state.guard_decorator
-            route_id = route.endpoint._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, f"{description} should have route config"
@@ -333,7 +334,7 @@ async def test_authentication_decorators_unit(security_config: SecurityConfig) -
     https_decorator = decorator.require_https()
     decorated_func = https_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     assert route_config.require_https is True
@@ -341,7 +342,7 @@ async def test_authentication_decorators_unit(security_config: SecurityConfig) -
     auth_decorator = decorator.require_auth()
     decorated_func2 = auth_decorator(mock_func)
 
-    route_id2 = decorated_func2._guard_route_id
+    route_id2 = get_route_id(decorated_func2)
     route_config2 = decorator.get_route_config(route_id2)
     assert route_config2 is not None
     assert route_config2.auth_required == "bearer"
@@ -349,7 +350,7 @@ async def test_authentication_decorators_unit(security_config: SecurityConfig) -
     auth_custom_decorator = decorator.require_auth(type="digest")
     decorated_func3 = auth_custom_decorator(mock_func)
 
-    route_id3 = decorated_func3._guard_route_id
+    route_id3 = get_route_id(decorated_func3)
     route_config3 = decorator.get_route_config(route_id3)
     assert route_config3 is not None
     assert route_config3.auth_required == "digest"
@@ -357,7 +358,7 @@ async def test_authentication_decorators_unit(security_config: SecurityConfig) -
     api_key_decorator = decorator.api_key_auth()
     decorated_func4 = api_key_decorator(mock_func)
 
-    route_id4 = decorated_func4._guard_route_id
+    route_id4 = get_route_id(decorated_func4)
     route_config4 = decorator.get_route_config(route_id4)
     assert route_config4 is not None
     assert route_config4.api_key_required is True
@@ -366,7 +367,7 @@ async def test_authentication_decorators_unit(security_config: SecurityConfig) -
     api_key_custom_decorator = decorator.api_key_auth(header_name="X-Custom-Key")
     decorated_func5 = api_key_custom_decorator(mock_func)
 
-    route_id5 = decorated_func5._guard_route_id
+    route_id5 = get_route_id(decorated_func5)
     route_config5 = decorator.get_route_config(route_id5)
     assert route_config5 is not None
     assert route_config5.api_key_required is True
@@ -377,7 +378,7 @@ async def test_authentication_decorators_unit(security_config: SecurityConfig) -
     )
     decorated_func6 = headers_decorator(mock_func)
 
-    route_id6 = decorated_func6._guard_route_id
+    route_id6 = get_route_id(decorated_func6)
     route_config6 = decorator.get_route_config(route_id6)
     assert route_config6 is not None
     assert route_config6.required_headers["X-Test"] == "value"

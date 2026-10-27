@@ -1,9 +1,9 @@
-from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from guard_core.decorators import get_route_id
 from guard_core.handlers.behavior_handler import BehaviorRule
 from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
@@ -103,7 +103,7 @@ async def test_behavioral_decorators_applied(
             )
 
             decorator = behavioral_decorator_app.state.guard_decorator
-            route_id = cast(Any, route.endpoint)._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, f"{description} should have route config"
@@ -158,7 +158,7 @@ async def test_behavioral_rule_configuration(
     for route in behavioral_decorator_app.routes:
         if isinstance(route, APIRoute) and route.path == route_path:
             decorator = behavioral_decorator_app.state.guard_decorator
-            route_id = cast(Any, route.endpoint)._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, f"{description} should have route config"
@@ -192,7 +192,7 @@ async def test_return_monitor_patterns(
     for route in behavioral_decorator_app.routes:
         if isinstance(route, APIRoute) and route.path == route_path:
             decorator = behavioral_decorator_app.state.guard_decorator
-            route_id = cast(Any, route.endpoint)._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, f"{description} should have route config"
@@ -210,7 +210,7 @@ async def test_behavior_analysis_multiple_rules(
     for route in behavioral_decorator_app.routes:
         if isinstance(route, APIRoute) and route.path == "/behavior-multi":
             decorator = behavioral_decorator_app.state.guard_decorator
-            route_id = cast(Any, route.endpoint)._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None
@@ -285,7 +285,7 @@ async def test_behavioral_decorators_unit(security_config: SecurityConfig) -> No
     usage_decorator = decorator.usage_monitor(max_calls=5, window=3600, action="ban")
     decorated_func = usage_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     assert len(route_config.behavior_rules) == 1
@@ -304,7 +304,7 @@ async def test_behavioral_decorators_unit(security_config: SecurityConfig) -> No
     )
     decorated_func2 = return_decorator(mock_func2)
 
-    route_id2 = decorated_func2._guard_route_id
+    route_id2 = get_route_id(decorated_func2)
     route_config2 = decorator.get_route_config(route_id2)
     assert route_config2 is not None
     assert len(route_config2.behavior_rules) == 1
@@ -326,7 +326,7 @@ async def test_behavioral_decorators_unit(security_config: SecurityConfig) -> No
     behavior_decorator = decorator.behavior_analysis(rules)
     decorated_func3 = behavior_decorator(mock_func3)
 
-    route_id3 = decorated_func3._guard_route_id
+    route_id3 = get_route_id(decorated_func3)
     route_config3 = decorator.get_route_config(route_id3)
     assert route_config3 is not None
     assert len(route_config3.behavior_rules) == 2
@@ -343,7 +343,7 @@ async def test_behavioral_decorators_unit(security_config: SecurityConfig) -> No
     )
     decorated_func4 = frequency_decorator(mock_func4)
 
-    route_id4 = decorated_func4._guard_route_id
+    route_id4 = get_route_id(decorated_func4)
     route_config4 = decorator.get_route_config(route_id4)
     assert route_config4 is not None
     assert len(route_config4.behavior_rules) == 1

@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
+from guard_core.decorators import get_route_id
 from guard_core.detection_result import DetectionResult
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.cloud_handler import cloud_handler_for
@@ -2194,7 +2195,7 @@ async def test_resolve_route_attaches_decorator_config_to_parameterised_route() 
     route = middleware._resolve_route(request)
     assert isinstance(route, Route)
     assert hasattr(route.endpoint, "_guard_route_id")
-    route_config = guard.get_route_config(route.endpoint._guard_route_id)
+    route_config = guard.get_route_config(get_route_id(route.endpoint))
     assert route_config is not None
     assert route_config.rate_limit == 5
 

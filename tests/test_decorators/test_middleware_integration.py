@@ -640,6 +640,7 @@ async def test_second_usage_rules_call_on_one_request_records_nothing_more() -> 
         BehaviorRule("usage", threshold=1, window=60, action="throttle")
     ]
     tracker = middleware.handler_initializer.behavior_tracker
+    assert tracker is not None
 
     def recorded_hits() -> int:
         return sum(

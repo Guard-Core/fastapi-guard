@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from guard_core.decorators import get_route_id
 from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
 
@@ -135,7 +136,7 @@ async def test_rate_limiting_decorators_applied(
             )
 
             decorator = rate_limiting_decorator_app.state.guard_decorator
-            route_id = route.endpoint._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, f"{description} should have route config"
@@ -158,7 +159,7 @@ async def test_geo_rate_limit_decorator_applied(
             )
 
             decorator = rate_limiting_decorator_app.state.guard_decorator
-            route_id = route.endpoint._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, "geo_rate_limit should have route config"
@@ -266,7 +267,7 @@ async def test_rate_limiting_decorators_unit(security_config: SecurityConfig) ->
     rate_limit_decorator = decorator.rate_limit(requests=5, window=120)
     decorated_func = rate_limit_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     assert route_config.rate_limit == 5
@@ -281,7 +282,7 @@ async def test_rate_limiting_decorators_unit(security_config: SecurityConfig) ->
     geo_rate_limit_decorator = decorator.geo_rate_limit(limits)
     decorated_func2 = geo_rate_limit_decorator(mock_func2)
 
-    route_id2 = decorated_func2._guard_route_id
+    route_id2 = get_route_id(decorated_func2)
     route_config2 = decorator.get_route_config(route_id2)
     assert route_config2 is not None
     assert route_config2.geo_rate_limits == limits

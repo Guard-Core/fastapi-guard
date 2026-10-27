@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from guard_core.decorators import get_route_id
 from guard_core.protocols import GuardRequest, GuardResponse
 from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
@@ -96,7 +97,7 @@ async def test_content_filtering_decorators_applied(
             )
 
             decorator = content_decorator_app.state.guard_decorator
-            route_id = route.endpoint._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, f"{description} should have route config"
@@ -135,7 +136,7 @@ async def test_custom_validation_decorator_applied(
             )
 
             decorator = content_decorator_app.state.guard_decorator
-            route_id = route.endpoint._guard_route_id
+            route_id = get_route_id(route.endpoint)
             route_config = decorator.get_route_config(route_id)
 
             assert route_config is not None, (
@@ -209,7 +210,7 @@ async def test_content_filtering_decorators_unit(
     user_agent_decorator = decorator.block_user_agents(["bot", "spider"])
     decorated_func = user_agent_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     assert route_config.blocked_user_agents == ["bot", "spider"]
@@ -222,7 +223,7 @@ async def test_content_filtering_decorators_unit(
     content_type_decorator = decorator.content_type_filter(["application/json"])
     decorated_func2 = content_type_decorator(mock_func2)
 
-    route_id2 = decorated_func2._guard_route_id
+    route_id2 = get_route_id(decorated_func2)
     route_config2 = decorator.get_route_config(route_id2)
     assert route_config2 is not None
     assert route_config2.allowed_content_types == ["application/json"]
@@ -235,7 +236,7 @@ async def test_content_filtering_decorators_unit(
     size_decorator = decorator.max_request_size(2048)
     decorated_func3 = size_decorator(mock_func3)
 
-    route_id3 = decorated_func3._guard_route_id
+    route_id3 = get_route_id(decorated_func3)
     route_config3 = decorator.get_route_config(route_id3)
     assert route_config3 is not None
     assert route_config3.max_request_size == 2048
@@ -248,7 +249,7 @@ async def test_content_filtering_decorators_unit(
     referrer_decorator = decorator.require_referrer(["example.com"])
     decorated_func4 = referrer_decorator(mock_func4)
 
-    route_id4 = decorated_func4._guard_route_id
+    route_id4 = get_route_id(decorated_func4)
     route_config4 = decorator.get_route_config(route_id4)
     assert route_config4 is not None
     assert route_config4.require_referrer == ["example.com"]
@@ -265,7 +266,7 @@ async def test_content_filtering_decorators_unit(
     custom_decorator = decorator.custom_validation(test_validator)
     decorated_func5 = custom_decorator(mock_func5)
 
-    route_id5 = decorated_func5._guard_route_id
+    route_id5 = get_route_id(decorated_func5)
     route_config5 = decorator.get_route_config(route_id5)
     assert route_config5 is not None
     assert len(route_config5.custom_validators) == 1
