@@ -19,6 +19,7 @@ from guard_core import (
     SecurityHeadersManager as SecurityHeadersManager,
     apply_security_headers_settings as apply_security_headers_settings,
     check_ip_access as check_ip_access,
+    endpoint_rate_limit_key_problems as endpoint_rate_limit_key_problems,
     ip_ban_manager as ip_ban_manager,
     is_ip_allowed as is_ip_allowed,
     security_headers_manager as security_headers_manager,

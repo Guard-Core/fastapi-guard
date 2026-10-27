@@ -77,3 +77,15 @@ def test_version_falls_back_when_package_metadata_missing(
         assert reloaded.__version__ == "0.0.0+unknown"
     finally:
         importlib.reload(guard)
+
+
+def test_endpoint_rate_limit_key_problems_is_the_engines_function() -> None:
+    import guard_core
+
+    import guard
+
+    assert "endpoint_rate_limit_key_problems" in guard.__all__
+    assert (
+        guard.endpoint_rate_limit_key_problems
+        is guard_core.endpoint_rate_limit_key_problems
+    )
