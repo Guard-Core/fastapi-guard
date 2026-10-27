@@ -557,17 +557,16 @@ class _StreamedDownstream:
         while (message := await self._take_next_message()) is not None:
             if message["type"] == "http.response.start":
                 return message
-        if self._failure is not None:
-            raise self._take_failure()
+        if (failure := self._failure) is not None:
+            raise self._take_failure(failure)
         raise RuntimeError("No response returned.")
 
-    def _take_failure(self) -> Exception:
+    def _take_failure(self, failure: Exception) -> Exception:
         # Handing the exception over (instead of keeping it on self) breaks
         # the cycle self -> exception -> traceback -> frame -> self, which
         # would keep the response and the app's generators alive until the
         # cyclic GC runs.
-        failure, self._failure = self._failure, None
-        assert failure is not None
+        self._failure = None
         return failure
 
     async def _take_next_message(self) -> Message | None:
@@ -616,8 +615,8 @@ class _StreamedDownstream:
         replaced it) is released by `close` instead."""
         if self._task is not None and self._body_fully_streamed:
             await self._task
-            if self._failure is not None:
-                raise self._take_failure()
+            if (failure := self._failure) is not None:
+                raise self._take_failure(failure)
 
     async def close(self) -> None:
         """Release the app if nobody consumed its response to the end, then

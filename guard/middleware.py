@@ -102,6 +102,12 @@ def _router_route_prefixes(routes: Iterable[object], base: str) -> list[str]:
     return prefixes
 
 
+_PIPELINE_NOT_INITIALIZED = (
+    "The security pipeline is not built: the middleware handled a request "
+    "before initialization completed"
+)
+
+
 class SecurityMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp, *, config: SecurityConfig) -> None:
         super().__init__(app)
@@ -662,10 +668,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         return tuple(_router_route_prefixes(routes, ""))
 
     def _build_preflight_starlette_response(
-        self, request_headers: Mapping[str, str]
+        self, cors_handler: CorsHandler, request_headers: Mapping[str, str]
     ) -> StarletteResponse:
-        assert self._cors_handler is not None
-        preflight = self._cors_handler.build_preflight_response(request_headers)
+        preflight = cors_handler.build_preflight_response(request_headers)
         return StarletteResponse(
             content=preflight.body,
             status_code=preflight.status_code,
@@ -686,17 +691,20 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     async def _handle_preflight(
         self, request: Request, guard_request: StarletteGuardRequest
     ) -> Response | None:
-        if self._cors_handler is None:
+        cors_handler = self._cors_handler
+        if cors_handler is None:
             return None
         if not is_preflight(request.method, request.headers):
             return None
-        assert self.security_pipeline is not None
-        blocking = await self.security_pipeline.execute(guard_request)
+        pipeline = self.security_pipeline
+        if pipeline is None:
+            raise RuntimeError(_PIPELINE_NOT_INITIALIZED)
+        blocking = await pipeline.execute(guard_request)
         if blocking is not None:
             blocked = unwrap_response(blocking)
             self._inject_cors_headers(blocked, request.headers)
             return blocked
-        return self._build_preflight_starlette_response(request.headers)
+        return self._build_preflight_starlette_response(cors_handler, request.headers)
 
     async def _handle_passthrough(
         self,
@@ -732,8 +740,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     async def _handle_pipeline_block(
         self, request: Request, guard_request: StarletteGuardRequest
     ) -> Response | None:
-        assert self.security_pipeline is not None
-        blocking = await self.security_pipeline.execute(guard_request)
+        pipeline = self.security_pipeline
+        if pipeline is None:
+            raise RuntimeError(_PIPELINE_NOT_INITIALIZED)
+        blocking = await pipeline.execute(guard_request)
         if blocking is None:
             return None
         blocked = unwrap_response(blocking)
