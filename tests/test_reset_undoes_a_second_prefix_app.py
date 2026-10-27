@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from guard_core.handlers import ipban_handler
 from guard_core.handlers.ipban_handler import (
     IPBanManager,
@@ -20,15 +22,17 @@ def _redis_config(prefix: str) -> SecurityConfig:
     )
 
 
-async def test_a_second_app_on_another_prefix_takes_the_class_singleton() -> None:
+async def test_a_second_prefix_app_leaves_the_default_manager_as_singleton() -> None:
     first, second = _redis_config("wp186a:"), _redis_config("wp186b:")
     assert ip_ban_manager_for(first, bind=True) is ip_ban_manager
     own = ip_ban_manager_for(second, bind=True)
     assert own is not ip_ban_manager
     await own.initialize_redis(None)
-    assert IPBanManager() is own
+    assert IPBanManager() is ip_ban_manager
+    ip_ban_manager.banned_ips["203.0.113.9"] = time.time() + 60
 
 
-async def test_the_reset_after_it_gives_the_default_manager_back() -> None:
+async def test_the_reset_after_it_cleared_the_default_manager() -> None:
     assert IPBanManager() is ip_ban_manager
     assert ipban_handler.ip_ban_manager is ip_ban_manager
+    assert "203.0.113.9" not in ip_ban_manager.banned_ips
