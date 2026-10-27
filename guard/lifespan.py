@@ -113,6 +113,7 @@ async def _warm_middleware_or_adopt(
     middleware: SecurityMiddleware, app: object
 ) -> None:
     middleware.guard_decorator = resolve_app_state_decorator(app)
+    middleware._routing_app = app
     warm = get_state(middleware.config, middleware.guard_decorator)
     if warm is not None:
         middleware._adopt_warm_state(warm)
