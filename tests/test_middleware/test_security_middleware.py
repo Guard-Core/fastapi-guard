@@ -2078,8 +2078,13 @@ async def test_agent_initialization_exception() -> None:
         enable_agent=True,
         agent_api_key="test-key",
     )
-    with patch("guard_agent.guard_agent", side_effect=RuntimeError("init failed")):
-        SecurityMiddleware(app, config=config)
+    with patch(
+        "guard_agent.GuardAgentHandler", side_effect=RuntimeError("init failed")
+    ):
+        middleware = SecurityMiddleware(app, config=config)
+
+    assert middleware.agent_handler is None
+    assert middleware.agent_degraded is True
 
 
 async def test_agent_initialization_invalid_config() -> None:

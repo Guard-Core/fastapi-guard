@@ -44,7 +44,7 @@ async def test_agent_stats_answers_after_the_composite_handler_is_swapped_in(
 ) -> None:
     stub = _StatsAgentStub()
     monkeypatch.setitem(
-        sys.modules, "guard_agent", SimpleNamespace(guard_agent=lambda _cfg: stub)
+        sys.modules, "guard_agent", SimpleNamespace(GuardAgentHandler=lambda _cfg: stub)
     )
     config = SecurityConfig(enable_agent=True, agent_api_key="x", enable_redis=False)
     with patch.object(SecurityConfig, "to_agent_config", return_value=object()):
