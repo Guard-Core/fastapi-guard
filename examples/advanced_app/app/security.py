@@ -105,3 +105,15 @@ security_config = SecurityConfig(
 )
 
 guard = SecurityDecorator(security_config)
+
+
+def build_pure_asgi_config() -> SecurityConfig:
+    """The config of the pure-ASGI sub-app mounted at /pure.
+
+    It differs from the main config by one blocked user agent and its own Redis
+    prefix, so a request that only the pure-ASGI middleware refuses is visible.
+    """
+    values = security_config.model_dump()
+    values["blocked_user_agents"] = [*values["blocked_user_agents"], "pure-only-bot"]
+    values["redis_prefix"] = f"{security_config.redis_prefix}pure:"
+    return SecurityConfig(**values)

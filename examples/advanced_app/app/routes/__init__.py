@@ -8,6 +8,7 @@ from app.routes.content import router as content_router
 from app.routes.headers import router as headers_router
 from app.routes.health import router as health_router
 from app.routes.rate_limiting import router as rate_router
+from app.routes.surfaces import blocks as blocks_router, router as surfaces_router
 from app.routes.testing import router as test_router
 
 __all__ = [
@@ -16,10 +17,12 @@ __all__ = [
     "advanced_router",
     "auth_router",
     "basic_router",
+    "blocks_router",
     "behavior_router",
     "content_router",
     "headers_router",
     "health_router",
     "rate_router",
+    "surfaces_router",
     "test_router",
 ]

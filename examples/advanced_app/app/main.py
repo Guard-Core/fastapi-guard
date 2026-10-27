@@ -1,10 +1,12 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.models import ErrorResponse, RootResponse
 from app.routes import (
@@ -14,15 +16,22 @@ from app.routes import (
     auth_router,
     basic_router,
     behavior_router,
+    blocks_router,
     content_router,
     headers_router,
     health_router,
     rate_router,
+    surfaces_router,
     test_router,
 )
-from app.security import guard, security_config
-from guard import SecurityMiddleware, guard_websocket
+from app.security import build_pure_asgi_config, guard, security_config
+from guard import (
+    PureASGISecurityMiddleware,
+    SecurityMiddleware,
+    guard_websocket,
+)
 from guard.lifespan import make_lifespan
+from guard.status import add_status_route
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,6 +78,26 @@ app.include_router(content_router)
 app.include_router(advanced_router)
 app.include_router(admin_router)
 app.include_router(test_router)
+app.include_router(surfaces_router)
+app.include_router(blocks_router)
+add_status_route(app)
+app.mount(
+    "/assets",
+    StaticFiles(directory=Path(__file__).parent / "assets"),
+    name="assets",
+)
+
+pure_app = FastAPI(title="Pure ASGI guarded sub-app")
+
+
+@pure_app.api_route("/ping", methods=["GET", "POST"])
+async def pure_ping() -> dict[str, bool]:
+    return {"pure": True}
+
+
+app.mount(
+    "/pure", PureASGISecurityMiddleware(pure_app, config=build_pure_asgi_config())
+)
 
 
 @app.get(
