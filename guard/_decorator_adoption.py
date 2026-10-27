@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from typing import Any
+from guard_core.decorators.base import BaseSecurityDecorator
 
 
-def resolve_app_state_decorator(app: Any) -> Any:
+def resolve_app_state_decorator(app: object) -> BaseSecurityDecorator | None:
     state = getattr(app, "state", None)
-    return getattr(state, "guard_decorator", None)
+    decorator: BaseSecurityDecorator | None = getattr(state, "guard_decorator", None)
+    return decorator
 
 
-def adopt_app_state_decorator(guard_decorator: Any, request: Any) -> Any:
+def adopt_app_state_decorator(
+    guard_decorator: BaseSecurityDecorator | None, request: object
+) -> BaseSecurityDecorator | None:
     if guard_decorator is not None or request is None:
         return guard_decorator
     scope = getattr(request, "scope", None)

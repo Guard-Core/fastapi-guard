@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -231,18 +231,18 @@ def test_adopt_warm_state_prefers_composite_handler() -> None:
     app.add_middleware(SecurityMiddleware, config=config)
     middleware = SecurityMiddleware(app, config=config)
 
-    sentinel_composite = object()
-    sentinel_agent = object()
+    sentinel_composite = MagicMock()
+    sentinel_agent = MagicMock()
     state = MiddlewareState(
-        security_pipeline=object(),
+        security_pipeline=MagicMock(),
         composite_handler=sentinel_composite,
-        event_bus=object(),
-        metrics_collector=object(),
-        response_factory=object(),
-        validator=object(),
-        bypass_handler=object(),
-        behavioral_processor=object(),
-        handler_initializer=object(),
+        event_bus=MagicMock(),
+        metrics_collector=MagicMock(),
+        response_factory=MagicMock(),
+        validator=MagicMock(),
+        bypass_handler=MagicMock(),
+        behavioral_processor=MagicMock(),
+        handler_initializer=MagicMock(),
         agent_handler=sentinel_agent,
     )
     middleware._adopt_warm_state(state)
@@ -257,17 +257,17 @@ def test_adopt_warm_state_falls_back_to_agent_handler() -> None:
     app.add_middleware(SecurityMiddleware, config=config)
     middleware = SecurityMiddleware(app, config=config)
 
-    sentinel_agent = object()
+    sentinel_agent = MagicMock()
     state = MiddlewareState(
-        security_pipeline=object(),
+        security_pipeline=MagicMock(),
         composite_handler=None,
-        event_bus=object(),
-        metrics_collector=object(),
-        response_factory=object(),
-        validator=object(),
-        bypass_handler=object(),
-        behavioral_processor=object(),
-        handler_initializer=object(),
+        event_bus=MagicMock(),
+        metrics_collector=MagicMock(),
+        response_factory=MagicMock(),
+        validator=MagicMock(),
+        bypass_handler=MagicMock(),
+        behavioral_processor=MagicMock(),
+        handler_initializer=MagicMock(),
         agent_handler=sentinel_agent,
     )
     middleware._adopt_warm_state(state)
@@ -284,15 +284,15 @@ def test_adopt_warm_state_leaves_agent_handler_when_both_none() -> None:
     previous_agent = middleware.agent_handler
 
     state = MiddlewareState(
-        security_pipeline=object(),
+        security_pipeline=MagicMock(),
         composite_handler=None,
-        event_bus=object(),
-        metrics_collector=object(),
-        response_factory=object(),
-        validator=object(),
-        bypass_handler=object(),
-        behavioral_processor=object(),
-        handler_initializer=object(),
+        event_bus=MagicMock(),
+        metrics_collector=MagicMock(),
+        response_factory=MagicMock(),
+        validator=MagicMock(),
+        bypass_handler=MagicMock(),
+        behavioral_processor=MagicMock(),
+        handler_initializer=MagicMock(),
         agent_handler=None,
     )
     middleware._adopt_warm_state(state)

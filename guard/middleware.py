@@ -3,8 +3,8 @@ import stat
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable, Iterator
-from typing import TYPE_CHECKING, Any, cast
+from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping
+from typing import TYPE_CHECKING
 
 from fastapi import Request, Response
 from fastapi.encoders import jsonable_encoder
@@ -27,6 +27,7 @@ from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.models import SecurityConfig
 from guard_core.protocols import AgentHandlerProtocol, GuardResponse
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.utils import (
     extract_client_ip,
@@ -37,7 +38,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 from starlette.routing import Match, Mount, get_route_path
 from starlette.staticfiles import StaticFiles
-from starlette.types import ASGIApp
+from starlette.types import ASGIApp, Scope
 
 from guard._response_headers import merge_vary
 from guard.adapters import (
@@ -51,7 +52,7 @@ if TYPE_CHECKING:
     from guard._middleware_state import MiddlewareState
 
 
-def _static_file_is_served(static_files: StaticFiles, scope: Any) -> bool:
+def _static_file_is_served(static_files: StaticFiles, scope: Scope) -> bool:
     try:
         _, file_stat = static_files.lookup_path(static_files.get_path(scope))
     except ValueError:
@@ -79,11 +80,11 @@ _FULL = (Match.FULL,)
 _FULL_OR_PARTIAL = (Match.FULL, Match.PARTIAL)
 
 
-def _path_params(values: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+def _path_params(values: Mapping[str, object]) -> tuple[tuple[str, str], ...]:
     return tuple(sorted((name, str(value)) for name, value in values.items()))
 
 
-def _router_route_prefixes(routes: Any, base: str) -> list[str]:
+def _router_route_prefixes(routes: Iterable[object], base: str) -> list[str]:
     prefixes: list[str] = []
     for route in routes:
         path = getattr(route, "path", None)
@@ -130,11 +131,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         if config.enable_agent:
             try:
                 agent_config = config.to_agent_config()
-                from guard_agent import guard_agent
+                from guard_agent import GuardAgentHandler
 
-                self.agent_handler = cast(
-                    AgentHandlerProtocol, guard_agent(cast(Any, agent_config))
-                )
+                if agent_config is None:
+                    raise ValueError(
+                        "Agent enabled but configuration is invalid. "
+                        "Check agent_api_key and other required fields."
+                    )
+                self.agent_handler = GuardAgentHandler(agent_config)
                 self.logger.info("Guard Agent initialized successfully")
             except AgentPackageNotInstalledError as e:
                 self._on_agent_init_failed(
@@ -149,7 +153,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 )
 
         self.security_pipeline: SecurityCheckPipeline | None = None
-        self._routing_app: Any = None
+        self._routing_app: object = None
 
         self._guard_response_factory = StarletteResponseFactory()
 
@@ -247,20 +251,18 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             self._initialized = True
 
     def _adopt_warm_state(self, state: "MiddlewareState") -> None:
-        self.security_pipeline = cast(SecurityCheckPipeline, state.security_pipeline)
-        self.event_bus = cast(SecurityEventBus, state.event_bus)
-        self.metrics_collector = cast(MetricsCollector, state.metrics_collector)
-        self.response_factory = cast(ErrorResponseFactory, state.response_factory)
-        self.validator = cast(RequestValidator, state.validator)
-        self.bypass_handler = cast(BypassHandler, state.bypass_handler)
-        self.behavioral_processor = cast(
-            BehavioralProcessor, state.behavioral_processor
-        )
-        self.handler_initializer = cast(HandlerInitializer, state.handler_initializer)
+        self.security_pipeline = state.security_pipeline
+        self.event_bus = state.event_bus
+        self.metrics_collector = state.metrics_collector
+        self.response_factory = state.response_factory
+        self.validator = state.validator
+        self.bypass_handler = state.bypass_handler
+        self.behavioral_processor = state.behavioral_processor
+        self.handler_initializer = state.handler_initializer
         if state.composite_handler is not None:
-            self.agent_handler = cast(AgentHandlerProtocol, state.composite_handler)
+            self.agent_handler = state.composite_handler
         elif state.agent_handler is not None:
-            self.agent_handler = cast(AgentHandlerProtocol, state.agent_handler)
+            self.agent_handler = state.agent_handler
 
     def _build_event_dependent_contexts(self) -> None:
         response_context = ResponseContext(
@@ -316,7 +318,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         self.logger.warning("Continuing without agent functionality")
 
     @property
-    def agent_stats(self) -> dict[str, Any]:
+    def agent_stats(self) -> dict[str, JsonValue]:
         if self.agent_handler is None:
             return {"enabled": False, "degraded": self.agent_degraded}
         handler_stats = self.agent_handler.get_stats()
@@ -416,24 +418,26 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         )
         return unwrap_response(result)
 
-    def _resolve_route(self, request: Request) -> Any:
+    def _resolve_route(self, request: Request) -> object:
         return self._resolve_route_with_params(request.scope)[0]
 
-    def _resolve_route_with_params(self, scope: Any) -> tuple[Any, dict[str, Any]]:
+    def _resolve_route_with_params(
+        self, scope: Scope
+    ) -> tuple[object, dict[str, object]]:
         route = scope.get("route")
         if route:
             return route, scope.get("path_params", {})
         return next(self._matching_routes(scope, _FULL), (None, {}))
 
     def _matching_routes(
-        self, scope: Any, accepted: tuple[Match, ...]
-    ) -> Iterator[tuple[Any, dict[str, Any]]]:
+        self, scope: Scope, accepted: tuple[Match, ...]
+    ) -> Iterator[tuple[object, dict[str, object]]]:
         for route, params, _ in self._matching_routes_in_scope(scope, accepted):
             yield route, params
 
     def _matching_routes_in_scope(
-        self, scope: Any, accepted: tuple[Match, ...]
-    ) -> Iterator[tuple[Any, dict[str, Any], dict[str, Any]]]:
+        self, scope: Scope, accepted: tuple[Match, ...]
+    ) -> Iterator[tuple[object, dict[str, object], Scope]]:
         app = scope.get("app")
         routes = getattr(app, "routes", None)
         if not routes:
@@ -445,12 +449,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
     def _match_router(
         self,
-        routes: Any,
-        scope: Any,
-        seen: set[Any],
+        routes: Iterable[object],
+        scope: Scope,
+        seen: set[tuple[int, object, object]],
         redirect_slashes: bool,
         accepted: tuple[Match, ...],
-    ) -> Iterator[tuple[Any, dict[str, Any], dict[str, Any]]]:
+    ) -> Iterator[tuple[object, dict[str, object], Scope]]:
         # Starlette's router answers a path none of its routes match with a 307 to the
         # same path with the trailing slash toggled, when a route matches there, so that
         # route's decorator config is the one that governs this request. Each router
@@ -472,8 +476,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         yield from self._match_route(routes, {**scope, "path": toggled}, seen, accepted)
 
     def _match_route(
-        self, routes: Any, scope: Any, seen: set[Any], accepted: tuple[Match, ...]
-    ) -> Iterator[tuple[Any, dict[str, Any], dict[str, Any]]]:
+        self,
+        routes: Iterable[object],
+        scope: Scope,
+        seen: set[tuple[int, object, object]],
+        accepted: tuple[Match, ...],
+    ) -> Iterator[tuple[object, dict[str, object], Scope]]:
         # This middleware is a BaseHTTPMiddleware, so it runs before the router
         # and scope["route"] is unset. Replicate Starlette's matching, descending
         # into sub-routers / mounts (FastAPI's include_router inserts a wrapper
@@ -513,7 +521,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     accepted,
                 )
 
-    def _first_visit(self, seen: set[Any], node: Any, scope: Any) -> bool:
+    def _first_visit(
+        self, seen: set[tuple[int, object, object]], node: object, scope: Scope
+    ) -> bool:
         # Replaces a fixed depth cap, which silently abandoned the walk and left
         # deeply nested routes unresolved. Marking the route and its sub-route
         # collection stops mount cycles and keeps a graph that reaches the same
@@ -526,7 +536,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         seen.add(key)
         return True
 
-    def _unwrap_candidate(self, route: Any) -> Any:
+    def _unwrap_candidate(self, route: object) -> object:
         # FastAPI's include machinery matches through _EffectiveRouteContext proxies
         # that hold the prefix-corrected route; that inner route is what carries the
         # endpoint and the sub-routes, and its child scope is already applied here.
@@ -536,7 +546,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             or route
         )
 
-    def _route_match(self, route: Any, scope: Any) -> tuple[Match, Any]:
+    def _route_match(self, route: object, scope: Scope) -> tuple[Match, Scope]:
         matches = getattr(route, "matches", None)
         if matches is None:
             return Match.NONE, {}
@@ -546,13 +556,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             return Match.NONE, {}
         return match, child
 
-    def _sub_routes(self, route: Any) -> Any:
+    def _sub_routes(self, route: object) -> Iterable[object]:
         # FastAPI's _IncludedRouter keeps sub-routes un-prefixed and only applies the
         # combined include prefix in effective_candidates(); descending into
         # original_router.routes instead resolves nothing past one nesting level.
         candidates = getattr(route, "effective_candidates", None)
         if callable(candidates):
-            return candidates()
+            effective: Iterable[object] = candidates()
+            return effective
         included = getattr(route, "original_router", None)
         mounted = getattr(route, "app", None)
         return (
@@ -563,7 +574,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         )
 
     def _record_route_template(
-        self, guard_request: StarletteGuardRequest, route: Any
+        self, guard_request: StarletteGuardRequest, route: object
     ) -> None:
         template = getattr(route, "path", None)
         if isinstance(template, str):
@@ -597,7 +608,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         if getattr(self.security_pipeline, "needs_route_identity", False):
             guard_request.state.guard_route_identity = (ep, _path_params(path_params))
 
-    def _path_scope(self, path: str) -> dict[str, Any]:
+    def _path_scope(self, path: str) -> Scope:
         return {
             "type": "http",
             "path": path,
@@ -621,7 +632,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
     def resolve_route(
         self, path: str
-    ) -> tuple[tuple[Any, tuple[tuple[str, str], ...]], ...]:
+    ) -> tuple[tuple[object, tuple[tuple[str, str], ...]], ...]:
         identities = {
             (endpoint, _path_params(params)): None
             for route, params in self._matching_routes(
@@ -651,7 +662,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         return tuple(_router_route_prefixes(routes, ""))
 
     def _build_preflight_starlette_response(
-        self, request_headers: Any
+        self, request_headers: Mapping[str, str]
     ) -> StarletteResponse:
         assert self._cors_handler is not None
         preflight = self._cors_handler.build_preflight_response(request_headers)
@@ -661,7 +672,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             headers=preflight.headers,
         )
 
-    def _inject_cors_headers(self, response: Response, request_headers: Any) -> None:
+    def _inject_cors_headers(
+        self, response: Response, request_headers: Mapping[str, str]
+    ) -> None:
         if self._cors_handler is None:
             return
         cors_headers = self._cors_handler.build_response_headers(request_headers)
@@ -901,6 +914,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             self.metrics_collector = self.handler_initializer.build_metrics_collector()
             self._build_event_dependent_contexts()
 
-    def get_initialization_status(self) -> dict[str, Any]:
+    def get_initialization_status(self) -> dict[str, JsonValue]:
         status = self.handler_initializer.get_initialization_status()
-        return cast(dict[str, Any], jsonable_encoder(status))
+        encoded: dict[str, JsonValue] = jsonable_encoder(status)
+        return encoded

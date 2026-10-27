@@ -1,6 +1,6 @@
 import logging
-from collections.abc import Awaitable, Callable, Coroutine, Mapping
-from typing import Any, NamedTuple, cast
+from collections.abc import Awaitable, Callable, Mapping
+from typing import NamedTuple
 
 from guard_core import check_rate_limit_by_ip, is_ip_allowed
 from guard_core.core.checks.base import SecurityCheck
@@ -11,25 +11,29 @@ from guard_core.core.checks.implementations.suspicious_activity import (
 from guard_core.core.checks.implementations.user_agent import UserAgentCheck
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.events import SecurityEventBus
+from guard_core.core.responses import ErrorResponseFactory
 from guard_core.core.routing import RouteConfigResolver, RoutingContext
 from guard_core.core.validation import RequestValidator, ValidationContext
 from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
+from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols import AgentHandlerProtocol, GuardResponseFactory
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import UNKNOWN_CLIENT_IDENTITY, extract_client_ip, log_activity
 from starlette import status
+from starlette.datastructures import State
 from starlette.exceptions import WebSocketException
 from starlette.routing import get_route_path
 from starlette.websockets import WebSocket
 
 from guard._decorator_adoption import resolve_app_state_decorator
 from guard._middleware_state import get_state
-from guard.adapters import _join_repeated_header_lines
+from guard.adapters import _join_repeated_header_lines, asgi_scope_as_dict
 from guard.lifespan import (
     _find_security_config,
     _find_security_redis_handler,
@@ -129,12 +133,12 @@ class _WebSocketGuardRequest:
         return b""
 
     @property
-    def state(self) -> Any:
+    def state(self) -> State:
         return self._websocket.state
 
     @property
-    def scope(self) -> dict[str, Any]:
-        return cast(dict[str, Any], self._websocket.scope)
+    def scope(self) -> dict[str, object]:
+        return asgi_scope_as_dict(self._websocket.scope)
 
 
 class _WebSocketDetectionResponse:
@@ -150,10 +154,10 @@ class _WebSocketDetectionMiddleware:
         self.logger = logger
         self.last_cloud_ip_refresh = 0
         self.suspicious_request_counts: dict[str, dict[str, int]] = {}
-        self.rate_limit_handler: Any = None
-        self.agent_handler: Any = None
-        self.guard_response_factory: Any = None
-        self.response_factory: Any = None
+        self.rate_limit_handler: RateLimitManager | None = None
+        self.agent_handler: AgentHandlerProtocol | None = None
+        self.guard_response_factory: GuardResponseFactory | None = None
+        self.response_factory: ErrorResponseFactory | None = None
         self.guard_decorator: BaseSecurityDecorator | None = None
         self.geo_ip_handler = config.geo_ip_handler
         self.event_bus = SecurityEventBus(
@@ -190,10 +194,12 @@ def _get_ws_detection_middleware(
 
 
 def _resolve_shared_suspicious_counts(
-    app: Any, config: SecurityConfig
+    app: object, config: SecurityConfig
 ) -> dict[str, dict[str, int]] | None:
     state = get_state(config, resolve_app_state_decorator(app))
     if state is None:
+        return None
+    if state.security_pipeline is None:
         return None
     for check in state.security_pipeline.checks:
         if check.check_name == "suspicious_activity":
@@ -215,7 +221,7 @@ async def _mark_exclusion_scope(
 async def _run_penetration_detection(
     guard_request: GuardRequest,
     config: SecurityConfig,
-    app: Any = None,
+    app: object = None,
 ) -> None:
     detection_middleware = _get_ws_detection_middleware(config)
     if app is not None:
@@ -241,7 +247,7 @@ async def _run_penetration_detection(
 
 
 async def _guarded_redis_call(
-    awaitable: Coroutine[Any, Any, bool],
+    awaitable: Awaitable[bool],
     config: SecurityConfig,
     check_name: str,
     default: bool,
@@ -392,7 +398,7 @@ async def _run_websocket_checks(
     websocket: WebSocket,
     config: SecurityConfig,
     redis_handler: RedisManager | None,
-    app: Any = None,
+    app: object = None,
 ) -> None:
     guard_request: GuardRequest = _WebSocketGuardRequest(websocket)
     client_ip = await extract_client_ip(guard_request, config)
@@ -433,7 +439,7 @@ async def _run_websocket_checks(
 
 
 async def _initialize_redis_like_http(
-    websocket: WebSocket, config: SecurityConfig, app: Any
+    websocket: WebSocket, config: SecurityConfig, app: object
 ) -> None:
     try:
         await initialize_like_http_if_cold(app, config)

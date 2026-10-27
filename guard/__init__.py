@@ -1,5 +1,5 @@
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import guard_core
 from guard_core import (
@@ -72,7 +72,7 @@ _LAZY_GUARD_CORE_NAMES = frozenset(
 )
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     if name not in _LAZY_GUARD_CORE_NAMES:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     value = getattr(guard_core, name)

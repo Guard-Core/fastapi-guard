@@ -36,10 +36,10 @@ the application can read the request body.
 import asyncio
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
 
 from fastapi import Response
 from guard_core._utils.app_scope import hold_app_scope, release_app_scope
+from guard_core.decorators.base import RouteConfig
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.behavior_handler import config_to_rule
 from guard_core.handlers.security_headers_handler import security_headers_manager
@@ -332,7 +332,7 @@ class PureASGISecurityMiddleware:
         self,
         guard_request: StarletteGuardRequest,
         client_ip: str | None,
-        route_config: Any,
+        route_config: RouteConfig | None,
         wrapped_send: _HeaderInjectingSend,
     ) -> None:
         if wrapped_send.status_code is None or not client_ip:

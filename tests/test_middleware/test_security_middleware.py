@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from types import SimpleNamespace
@@ -23,7 +24,7 @@ from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
 from redis.exceptions import RedisError
 from starlette.applications import Starlette
-from starlette.routing import Match
+from starlette.routing import Match, Route
 from starlette.testclient import TestClient
 
 from guard.adapters import StarletteGuardRequest, StarletteGuardResponse
@@ -2088,7 +2089,10 @@ async def test_agent_initialization_invalid_config() -> None:
         agent_api_key="test-key",
     )
     with patch.object(SecurityConfig, "to_agent_config", return_value=None):
-        SecurityMiddleware(app, config=config)
+        middleware = SecurityMiddleware(app, config=config)
+
+    assert middleware.agent_handler is None
+    assert middleware.agent_degraded is True
 
 
 async def test_resolve_route_no_app_routes() -> None:
@@ -2160,7 +2164,7 @@ async def test_resolve_route_matches_path_parameter_route() -> None:
 
     request = StarletteRequest(_http_scope(app, "GET", "/items/42"))
     route = middleware._resolve_route(request)
-    assert route is not None
+    assert isinstance(route, Route)
     assert route.endpoint is get_item
 
 
@@ -2183,7 +2187,7 @@ async def test_resolve_route_attaches_decorator_config_to_parameterised_route() 
 
     request = StarletteRequest(_http_scope(app, "POST", "/items/7/action"))
     route = middleware._resolve_route(request)
-    assert route is not None
+    assert isinstance(route, Route)
     assert hasattr(route.endpoint, "_guard_route_id")
     route_config = guard.get_route_config(route.endpoint._guard_route_id)
     assert route_config is not None
@@ -2207,7 +2211,7 @@ async def test_resolve_route_matches_included_router_route() -> None:
 
     request = StarletteRequest(_http_scope(app, "POST", "/api/things"))
     route = middleware._resolve_route(request)
-    assert route is not None
+    assert isinstance(route, Route)
     assert route.endpoint is create_thing
 
 
@@ -2243,7 +2247,7 @@ async def test_resolve_route_matches_prefixed_included_router_route() -> None:
 
     request = StarletteRequest(_http_scope(app, "POST", "/api/mcp/servers/9"))
     route = middleware._resolve_route(request)
-    assert route is not None
+    assert isinstance(route, Route)
     assert route.endpoint is reconnect
 
 
@@ -2336,7 +2340,7 @@ async def test_resolve_route_matches_deeply_nested_mounted_apps() -> None:
     path = "".join(f"/m{i}" for i in range(depth)) + "/secret"
     request = StarletteRequest(_http_scope(root, "GET", path))
     route = middleware._resolve_route(request)
-    assert route is not None
+    assert isinstance(route, Route)
     assert route.endpoint is secret
 
 
@@ -2362,7 +2366,7 @@ async def test_resolve_route_matches_deeply_nested_prefixed_routers() -> None:
     path = "".join(f"/r{i}" for i in range(depth)) + "/secret"
     request = StarletteRequest(_http_scope(app, "GET", path))
     route = middleware._resolve_route(request)
-    assert route is not None
+    assert isinstance(route, Route)
     assert route.endpoint is secret
 
 
@@ -2385,7 +2389,7 @@ async def test_resolve_route_matches_mount_inside_prefixed_included_router() -> 
 
     request = StarletteRequest(_http_scope(app, "GET", "/api/sub/secret"))
     route = middleware._resolve_route(request)
-    assert route is not None
+    assert isinstance(route, Route)
     assert route.endpoint is secret
 
 
@@ -2410,7 +2414,7 @@ async def test_resolve_route_matches_router_included_twice_at_different_prefixes
     for prefix in ("/v1", "/v2"):
         request = StarletteRequest(_http_scope(app, "GET", f"{prefix}/end"))
         route = middleware._resolve_route(request)
-        assert route is not None
+        assert isinstance(route, Route)
         assert route.endpoint is end
 
 
@@ -2575,7 +2579,7 @@ async def test_agent_stats_reflects_live_drop_counter_increments() -> None:
     }
     middleware.agent_handler = fake_handler
 
-    first = middleware.agent_stats
+    first = json.loads(json.dumps(middleware.agent_stats))
     assert first["buffer_stats"]["events_dropped"] == 0
 
     fake_handler.get_stats.return_value = {
@@ -2583,7 +2587,7 @@ async def test_agent_stats_reflects_live_drop_counter_increments() -> None:
         "transport_stats": {"circuit_breaker_state": "OPEN"},
     }
 
-    second = middleware.agent_stats
+    second = json.loads(json.dumps(middleware.agent_stats))
     assert second["buffer_stats"]["events_dropped"] == 7
     assert second["buffer_stats"]["metrics_dropped"] == 3
     assert second["transport_stats"]["circuit_breaker_state"] == "OPEN"

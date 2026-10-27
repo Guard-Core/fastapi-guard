@@ -524,3 +524,14 @@ async def test_read_body_prefix_transient_copies_stay_below_body_size() -> None:
     assert prefix == (first + second)[: 5 * 1024 * 1024]
     assert peak < 8 * 1024 * 1024
     assert await request.body() == first + second
+
+
+def test_asgi_scope_as_dict_keeps_a_dict_and_copies_any_other_mapping() -> None:
+    from collections import UserDict
+
+    from guard.adapters import asgi_scope_as_dict
+
+    scope: dict[str, object] = {"type": "http"}
+
+    assert asgi_scope_as_dict(scope) is scope
+    assert asgi_scope_as_dict(UserDict(scope)) == scope

@@ -1,21 +1,41 @@
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, MutableMapping
+from collections.abc import (
+    AsyncIterable,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Mapping,
+    MutableMapping,
+)
 from functools import cached_property
-from typing import Any, cast
+from typing import Protocol, runtime_checkable
 
 from guard_core.exceptions import BodyReadStalledError
 from guard_core.protocols.request_protocol import GuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
-from starlette.datastructures import Headers
+from guard_core.protocols.response_protocol import GuardResponse, GuardResponseHeaders
+from starlette.datastructures import Headers, State
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, Response, StreamingResponse
+from starlette.responses import RedirectResponse, Response
 from starlette.routing import get_route_path
 from starlette.types import Message
 
+_Chunk = str | bytes | memoryview
+
+
+@runtime_checkable
+class _BodyStreamingResponse(Protocol):
+    # Starlette's StreamingResponse and the response BaseHTTPMiddleware hands to
+    # call_next both carry this attribute; a plain Response does not.
+    body_iterator: AsyncIterable[_Chunk]
+
+
+def asgi_scope_as_dict(scope: MutableMapping[str, object]) -> dict[str, object]:
+    return scope if isinstance(scope, dict) else dict(scope)
+
 
 async def _replay_then_continue(
-    captured: list[Any], stream: AsyncIterator[Any]
-) -> AsyncIterator[Any]:
+    captured: list[_Chunk], stream: AsyncIterator[_Chunk]
+) -> AsyncIterator[_Chunk]:
     for chunk in captured:
         yield chunk
     async for chunk in stream:
@@ -137,15 +157,15 @@ class StarletteGuardRequest:
         raise BodyReadStalledError()
 
     @property
-    def state(self) -> Any:
+    def state(self) -> State:
         return self._request.state
 
     @property
-    def scope(self) -> dict[str, Any]:
-        return cast(dict[str, Any], self._request.scope)
+    def scope(self) -> dict[str, object]:
+        return asgi_scope_as_dict(self._request.scope)
 
 
-def _chunk_bytes(chunk: Any) -> bytes:
+def _chunk_bytes(chunk: _Chunk) -> bytes:
     if isinstance(chunk, bytes):
         return chunk
     if isinstance(chunk, memoryview):
@@ -167,8 +187,8 @@ class StarletteGuardResponse:
         return self._response.status_code
 
     @property
-    def headers(self) -> MutableMapping[str, str]:
-        return cast(MutableMapping[str, str], self._response.headers)
+    def headers(self) -> GuardResponseHeaders:
+        return self._response.headers
 
     @property
     def body(self) -> bytes | None:
@@ -186,13 +206,12 @@ class StarletteGuardResponse:
         materialized = getattr(self._response, "body", None)
         if materialized is not None:
             return bytes(materialized)[:max_bytes]
-        iterator = getattr(self._response, "body_iterator", None)
-        if iterator is None:
+        streaming = self._response
+        if not isinstance(streaming, _BodyStreamingResponse):
             return b""
 
-        stream = aiter(iterator)
-        captured: list[Any] = []
-        streaming = cast(StreamingResponse, self._response)
+        stream = aiter(streaming.body_iterator)
+        captured: list[_Chunk] = []
         streaming.body_iterator = _replay_then_continue(captured, stream)
 
         # a declared length within the cap is read to its end; any other stream

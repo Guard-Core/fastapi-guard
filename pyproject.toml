@@ -188,6 +188,13 @@ warn_no_return = true
 warn_unreachable = true
 exclude = ["vulture_whitelist.py", ".venv", "manual_testing", "ZZZ", "tests/live_smoke/stack/app"]
 
+# D-189 Any ratchet: begin (shrink the list, never grow it; tests/test_any_ratchet.py holds the line)
+[[tool.mypy.overrides]]
+module = "guard.*"
+disallow_any_explicit = true
+
+# D-189 Any ratchet: end
+
 
 [tool.pymarkdown.system]
 exclude_path = ".venv,.git,.github,data,tests,.claude,CLAUDE.md,.cursor,.kiro,ZZZ"

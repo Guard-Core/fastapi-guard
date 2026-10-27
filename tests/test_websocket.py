@@ -2,6 +2,7 @@ import asyncio
 import logging
 from collections.abc import Generator, MutableMapping
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import Depends, FastAPI, WebSocket
@@ -1278,8 +1279,6 @@ def test_guard_websocket_ignores_http_pipeline_without_a_detection_check() -> No
 def test_resolve_shared_suspicious_counts_returns_none_without_a_matching_check() -> (
     None
 ):
-    from types import SimpleNamespace
-
     from guard_core.core.checks.pipeline import SecurityCheckPipeline
 
     from guard._middleware_state import MiddlewareState, register_state
@@ -1291,13 +1290,13 @@ def test_resolve_shared_suspicious_counts_returns_none_without_a_matching_check(
         MiddlewareState(
             security_pipeline=SecurityCheckPipeline([]),
             composite_handler=None,
-            event_bus=None,
-            metrics_collector=None,
-            response_factory=None,
-            validator=None,
-            bypass_handler=None,
-            behavioral_processor=None,
-            handler_initializer=SimpleNamespace(redis_handler=None),
+            event_bus=MagicMock(),
+            metrics_collector=MagicMock(),
+            response_factory=MagicMock(),
+            validator=MagicMock(),
+            bypass_handler=MagicMock(),
+            behavioral_processor=MagicMock(),
+            handler_initializer=MagicMock(redis_handler=None),
             agent_handler=None,
         ),
     )
@@ -1305,3 +1304,27 @@ def test_resolve_shared_suspicious_counts_returns_none_without_a_matching_check(
     result = websocket_module._resolve_shared_suspicious_counts(FastAPI(), config)
 
     assert result is None
+
+
+def test_shared_suspicious_counts_are_none_for_a_state_without_pipeline() -> None:
+    from guard._middleware_state import MiddlewareState, register_state
+
+    config = SecurityConfig(enable_redis=False)
+    register_state(
+        config,
+        None,
+        MiddlewareState(
+            security_pipeline=None,
+            composite_handler=None,
+            event_bus=MagicMock(),
+            metrics_collector=MagicMock(),
+            response_factory=MagicMock(),
+            validator=MagicMock(),
+            bypass_handler=MagicMock(),
+            behavioral_processor=MagicMock(),
+            handler_initializer=MagicMock(),
+            agent_handler=None,
+        ),
+    )
+
+    assert websocket_module._resolve_shared_suspicious_counts(FastAPI(), config) is None

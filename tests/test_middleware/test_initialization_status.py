@@ -52,7 +52,7 @@ def test_get_initialization_status_serializes_datetimes() -> None:
         "geo_ip": {"ready": True, "last_refreshed": refreshed_at, "entries": 494},
     }
 
-    status = middleware.get_initialization_status()
+    status = json.loads(json.dumps(middleware.get_initialization_status()))
 
     encoded = json.dumps(status)
     assert "2026-07-31" in encoded

@@ -1,7 +1,7 @@
 from collections.abc import Sequence
-from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, params
+from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -9,9 +9,9 @@ from guard.lifespan import _find_security_middleware
 
 
 def add_status_route(
-    app: Any,
+    app: Starlette,
     path: str = "/_guard/status",
-    dependencies: Sequence[Any] | None = None,
+    dependencies: Sequence[params.Depends] | None = None,
 ) -> None:
     middleware = _find_security_middleware(app)
     if middleware is None:

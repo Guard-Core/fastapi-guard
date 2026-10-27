@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from typing import Any, overload
+from typing import TypeVar, overload
 
 from guard_core._utils.config_registry import REDIS_HANDLERS
 from guard_core.exceptions import GuardRedisError
@@ -11,25 +11,27 @@ from guard._decorator_adoption import resolve_app_state_decorator
 from guard._middleware_state import MiddlewareState, get_state, register_state
 from guard.middleware import SecurityMiddleware
 
+AppT = TypeVar("AppT")
 
-def _find_security_middleware(app: Any) -> SecurityMiddleware | None:
+
+def _find_security_middleware(app: object) -> SecurityMiddleware | None:
     user_middleware = getattr(app, "user_middleware", None)
     if not user_middleware:
         return None
     for entry in user_middleware:
-        cls = getattr(entry, "cls", None)
-        if cls is SecurityMiddleware:
+        if getattr(entry, "cls", None) is SecurityMiddleware:
             kwargs = getattr(entry, "kwargs", None)
             if kwargs is None:
                 kwargs = getattr(entry, "options", {})
             try:
-                return cls(app, **kwargs)
+                built: SecurityMiddleware = entry.cls(app, **kwargs)
+                return built
             except Exception:
                 return None
     return None
 
 
-def _find_security_config(app: Any) -> SecurityConfig | None:
+def _find_security_config(app: object) -> SecurityConfig | None:
     user_middleware = getattr(app, "user_middleware", None)
     if not user_middleware:
         return None
@@ -46,7 +48,7 @@ def _find_security_config(app: Any) -> SecurityConfig | None:
     return None
 
 
-def _find_security_redis_handler(app: Any) -> RedisManager | None:
+def _find_security_redis_handler(app: object) -> RedisManager | None:
     config = _find_security_config(app)
     if config is None or not config.enable_redis:
         return None
@@ -56,7 +58,7 @@ def _find_security_redis_handler(app: Any) -> RedisManager | None:
     return None
 
 
-def _built_security_middleware(app: Any) -> SecurityMiddleware | None:
+def _built_security_middleware(app: object) -> SecurityMiddleware | None:
     node = getattr(app, "middleware_stack", None)
     while node is not None:
         if isinstance(node, SecurityMiddleware):
@@ -65,7 +67,7 @@ def _built_security_middleware(app: Any) -> SecurityMiddleware | None:
     return None
 
 
-def _cold_security_middleware(app: Any) -> SecurityMiddleware | None:
+def _cold_security_middleware(app: object) -> SecurityMiddleware | None:
     state = getattr(app, "state", None)
     kept = getattr(state, "_guard_cold_security_middleware", None)
     if isinstance(kept, SecurityMiddleware):
@@ -76,7 +78,7 @@ def _cold_security_middleware(app: Any) -> SecurityMiddleware | None:
     return built
 
 
-async def initialize_like_http_if_cold(app: Any, config: SecurityConfig) -> None:
+async def initialize_like_http_if_cold(app: object, config: SecurityConfig) -> None:
     decorator = resolve_app_state_decorator(app)
     if get_state(config, decorator) is not None:
         return
@@ -107,7 +109,9 @@ def _register_state_from_middleware(middleware: SecurityMiddleware) -> None:
     )
 
 
-async def _warm_middleware_or_adopt(middleware: SecurityMiddleware, app: Any) -> None:
+async def _warm_middleware_or_adopt(
+    middleware: SecurityMiddleware, app: object
+) -> None:
     middleware.guard_decorator = resolve_app_state_decorator(app)
     warm = get_state(middleware.config, middleware.guard_decorator)
     if warm is not None:
@@ -127,14 +131,14 @@ async def _warm_middleware_or_adopt(middleware: SecurityMiddleware, app: Any) ->
     _register_state_from_middleware(middleware)
 
 
-async def _release_redis_hold(app: Any) -> None:
+async def _release_redis_hold(app: object) -> None:
     handler = _find_security_redis_handler(app)
     if handler is not None:
         await handler.close()
 
 
 @asynccontextmanager
-async def guard_lifespan(app: Any) -> AsyncIterator[None]:
+async def guard_lifespan(app: object) -> AsyncIterator[None]:
     middleware = _find_security_middleware(app)
     if middleware is not None:
         await _warm_middleware_or_adopt(middleware, app)
@@ -144,7 +148,7 @@ async def guard_lifespan(app: Any) -> AsyncIterator[None]:
         await _release_redis_hold(app)
 
 
-async def guard_startup(app: Any) -> None:
+async def guard_startup(app: object) -> None:
     middleware = _find_security_middleware(app)
     if middleware is not None:
         await _warm_middleware_or_adopt(middleware, app)
@@ -152,26 +156,32 @@ async def guard_startup(app: Any) -> None:
 
 @overload
 def make_lifespan(
-    existing_lifespan: Callable[[Any], AbstractAsyncContextManager[None]] | None = None,
-) -> Callable[[Any], AbstractAsyncContextManager[None]]: ...
+    existing_lifespan: None = None,
+) -> Callable[[object], AbstractAsyncContextManager[None]]: ...
+
+
+@overload
+def make_lifespan(
+    existing_lifespan: Callable[[AppT], AbstractAsyncContextManager[None]],
+) -> Callable[[AppT], AbstractAsyncContextManager[None]]: ...
 
 
 @overload
 def make_lifespan(
     existing_lifespan: Callable[
-        [Any], AbstractAsyncContextManager[Mapping[str, object]]
+        [AppT], AbstractAsyncContextManager[Mapping[str, object]]
     ],
-) -> Callable[[Any], AbstractAsyncContextManager[Mapping[str, object]]]: ...
+) -> Callable[[AppT], AbstractAsyncContextManager[Mapping[str, object]]]: ...
 
 
 def make_lifespan(
     existing_lifespan: Callable[
-        [Any], AbstractAsyncContextManager[Mapping[str, object] | None]
+        [AppT], AbstractAsyncContextManager[Mapping[str, object] | None]
     ]
     | None = None,
-) -> Callable[[Any], AbstractAsyncContextManager[Mapping[str, object] | None]]:
+) -> Callable[[AppT], AbstractAsyncContextManager[Mapping[str, object] | None]]:
     @asynccontextmanager
-    async def combined(app: Any) -> AsyncIterator[Mapping[str, object] | None]:
+    async def combined(app: AppT) -> AsyncIterator[Mapping[str, object] | None]:
         middleware = _find_security_middleware(app)
         if middleware is not None:
             await _warm_middleware_or_adopt(middleware, app)
