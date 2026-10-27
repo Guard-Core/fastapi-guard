@@ -17,6 +17,7 @@ from guard_core import (
     SecurityConfig as SecurityConfig,
     SecurityDecorator as SecurityDecorator,
     SecurityHeadersManager as SecurityHeadersManager,
+    apply_security_headers_settings as apply_security_headers_settings,
     check_ip_access as check_ip_access,
     ip_ban_manager as ip_ban_manager,
     is_ip_allowed as is_ip_allowed,

@@ -39,3 +39,16 @@ async def test_request_with_hsts_none_does_not_500() -> None:
 
     assert response.status_code == 200
     assert "strict-transport-security" not in response.headers
+
+
+@pytest.mark.asyncio
+async def test_hsts_none_configures_manager_without_hsts() -> None:
+    await security_headers_manager.reset()
+    security_headers_manager.enabled = False
+    config = SecurityConfig(
+        enable_penetration_detection=False,
+        security_headers={"enabled": True, "hsts": None},
+    )
+    SecurityMiddleware(FastAPI(), config=config)
+    assert security_headers_manager.enabled is True
+    assert security_headers_manager.hsts_config is None

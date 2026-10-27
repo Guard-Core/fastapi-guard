@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import Request, Response
 from fastapi.encoders import jsonable_encoder
+from guard_core import apply_security_headers_settings
 from guard_core._utils.app_scope import hold_app_scope, release_app_scope
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.behavioral import BehavioralContext, BehavioralProcessor
@@ -342,37 +343,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         )
 
     def _configure_security_headers(self, config: SecurityConfig) -> None:
-        if not config.security_headers:
-            security_headers_manager.enabled = False
-            return
-
-        if not config.security_headers.get("enabled", True):
-            security_headers_manager.enabled = False
-            return
-
-        security_headers_manager.enabled = True
-        headers_config = config.security_headers
-        hsts_config = headers_config.get("hsts") or {}
-
-        security_headers_manager.configure(
-            enabled=headers_config.get("enabled", True),
-            csp=headers_config.get("csp"),
-            hsts_max_age=hsts_config.get("max_age"),
-            hsts_include_subdomains=hsts_config.get("include_subdomains", True),
-            hsts_preload=hsts_config.get("preload", False),
-            frame_options=headers_config.get("frame_options", "SAMEORIGIN"),
-            content_type_options=headers_config.get("content_type_options", "nosniff"),
-            xss_protection=headers_config.get("xss_protection", "1; mode=block"),
-            referrer_policy=headers_config.get(
-                "referrer_policy", "strict-origin-when-cross-origin"
-            ),
-            permissions_policy=headers_config.get("permissions_policy", "UNSET"),
-            custom_headers=headers_config.get("custom"),
-            cors_origins=config.cors_allow_origins if config.enable_cors else None,
-            cors_allow_credentials=config.cors_allow_credentials,
-            cors_allow_methods=config.cors_allow_methods,
-            cors_allow_headers=config.cors_allow_headers,
-        )
+        apply_security_headers_settings(security_headers_manager, config)
 
     def set_decorator_handler(
         self, decorator_handler: BaseSecurityDecorator | None
