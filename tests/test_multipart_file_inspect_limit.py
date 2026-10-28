@@ -9,9 +9,11 @@ from guard import SecurityConfig
 from guard.middleware import SecurityMiddleware
 
 BODY_LIMIT = 262144
-DEFAULT_FILE_LIMIT = SecurityConfig().detection_max_file_inspect_bytes
-PAST_THE_LIMIT_PADDING = BODY_LIMIT + 1024
-RAISED_FILE_LIMIT = 1_000_000
+DEFAULT_FILE_LIMIT = 1048576
+PAST_THE_BODY_LIMIT_PADDING = BODY_LIMIT + 1024
+PAST_THE_FILE_LIMIT_PADDING = DEFAULT_FILE_LIMIT + 1024
+RAISED_FILE_LIMIT = 2 * DEFAULT_FILE_LIMIT
+EXPLICIT_FILE_LIMIT = BODY_LIMIT
 BOUNDARY = "wp251boundary"
 _PAYLOAD = "1' UNION SELECT password FROM users--"
 _HEADERS = {"X-Forwarded-For": "203.0.113.50"}
@@ -19,10 +21,10 @@ _MULTIPART = {**_HEADERS, "Content-Type": f"multipart/form-data; boundary={BOUND
 _JSON = {**_HEADERS, "Content-Type": "application/json"}
 
 
-def _multipart_body() -> bytes:
+def _multipart_body(padding: int) -> bytes:
     pad = (
         f'--{BOUNDARY}\r\nContent-Disposition: form-data; name="pad"\r\n\r\n'
-        f"{'A' * PAST_THE_LIMIT_PADDING}\r\n"
+        f"{'A' * padding}\r\n"
     )
     comment = (
         f'--{BOUNDARY}\r\nContent-Disposition: form-data; name="comment"\r\n\r\n'
@@ -33,7 +35,11 @@ def _multipart_body() -> bytes:
 
 def _json_body() -> bytes:
     return (
-        '{"pad": "' + "A" * PAST_THE_LIMIT_PADDING + '", "comment": "' + _PAYLOAD + '"}'
+        '{"pad": "'
+        + "A" * PAST_THE_BODY_LIMIT_PADDING
+        + '", "comment": "'
+        + _PAYLOAD
+        + '"}'
     ).encode()
 
 
@@ -62,11 +68,15 @@ def _client(file_limit: int) -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
+def test_the_default_file_limit_is_one_mebibyte() -> None:
+    assert SecurityConfig().detection_max_file_inspect_bytes == DEFAULT_FILE_LIMIT
+
+
 @pytest.mark.parametrize("chunked", [False, True])
-async def test_multipart_past_the_body_limit_is_scanned_under_a_raised_file_limit(
+async def test_multipart_past_the_default_file_limit_is_scanned_when_raised(
     chunked: bool,
 ) -> None:
-    body = _multipart_body()
+    body = _multipart_body(PAST_THE_FILE_LIMIT_PADDING)
     async with _client(RAISED_FILE_LIMIT) as client:
         response = await client.post(
             "/upload", content=_chunked(body) if chunked else body, headers=_MULTIPART
@@ -80,8 +90,36 @@ async def test_multipart_past_the_body_limit_is_scanned_under_a_raised_file_limi
 async def test_a_multipart_body_past_the_default_file_limit_is_refused_not_passed(
     chunked: bool,
 ) -> None:
-    body = _multipart_body()
+    body = _multipart_body(PAST_THE_FILE_LIMIT_PADDING)
     async with _client(DEFAULT_FILE_LIMIT) as client:
+        response = await client.post(
+            "/upload", content=_chunked(body) if chunked else body, headers=_MULTIPART
+        )
+
+    assert response.status_code == 400
+    assert "Suspicious activity detected" not in response.text
+
+
+@pytest.mark.parametrize("chunked", [False, True])
+async def test_a_multipart_body_within_the_default_file_limit_is_scanned(
+    chunked: bool,
+) -> None:
+    body = _multipart_body(PAST_THE_BODY_LIMIT_PADDING)
+    async with _client(DEFAULT_FILE_LIMIT) as client:
+        response = await client.post(
+            "/upload", content=_chunked(body) if chunked else body, headers=_MULTIPART
+        )
+
+    assert response.status_code == 400
+    assert "Suspicious activity detected" in response.text
+
+
+@pytest.mark.parametrize("chunked", [False, True])
+async def test_a_multipart_body_past_an_explicit_262144_limit_is_refused_not_passed(
+    chunked: bool,
+) -> None:
+    body = _multipart_body(PAST_THE_BODY_LIMIT_PADDING)
+    async with _client(EXPLICIT_FILE_LIMIT) as client:
         response = await client.post(
             "/upload", content=_chunked(body) if chunked else body, headers=_MULTIPART
         )
@@ -96,6 +134,20 @@ async def test_a_json_body_of_the_same_size_stays_refused_under_a_raised_file_li
 ) -> None:
     body = _json_body()
     async with _client(RAISED_FILE_LIMIT) as client:
+        response = await client.post(
+            "/upload", content=_chunked(body) if chunked else body, headers=_JSON
+        )
+
+    assert response.status_code == 400
+    assert "Suspicious activity detected" not in response.text
+
+
+@pytest.mark.parametrize("chunked", [False, True])
+async def test_a_json_body_of_the_same_size_stays_refused_under_the_default_file_limit(
+    chunked: bool,
+) -> None:
+    body = _json_body()
+    async with _client(DEFAULT_FILE_LIMIT) as client:
         response = await client.post(
             "/upload", content=_chunked(body) if chunked else body, headers=_JSON
         )
