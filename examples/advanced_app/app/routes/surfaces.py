@@ -27,10 +27,18 @@ router = APIRouter(tags=["Surfaces"])
 blocks = APIRouter(prefix="/blocks", tags=["Building Blocks"])
 
 
-@router.api_route(
-    "/methods/resource",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    summary="Echoes the HTTP method the guard let through",
+# one route per method: FastAPI derives an api_route's operation id from its first
+# method only, so a five-method api_route repeats one id across the OpenAPI document
+@router.get("/methods/resource", summary="Echoes the HTTP method the guard let through")
+@router.post(
+    "/methods/resource", summary="Echoes the HTTP method the guard let through"
+)
+@router.put("/methods/resource", summary="Echoes the HTTP method the guard let through")
+@router.patch(
+    "/methods/resource", summary="Echoes the HTTP method the guard let through"
+)
+@router.delete(
+    "/methods/resource", summary="Echoes the HTTP method the guard let through"
 )
 async def method_echo(request: Request) -> dict[str, str]:
     return {"method": request.method}
