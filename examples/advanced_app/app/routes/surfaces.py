@@ -27,8 +27,10 @@ router = APIRouter(tags=["Surfaces"])
 blocks = APIRouter(prefix="/blocks", tags=["Building Blocks"])
 
 
-# one route per method: FastAPI derives an api_route's operation id from its first
-# method only, so a five-method api_route repeats one id across the OpenAPI document
+# The five-method route (innermost, so registered first) answers every request and a
+# 405 with the full Allow list: Starlette's 405 names only the first route that matches
+# the path. The per-method routes only document it: FastAPI derives an api_route's
+# operation id from its first method, so one five-method entry would repeat an id.
 @router.get("/methods/resource", summary="Echoes the HTTP method the guard let through")
 @router.post(
     "/methods/resource", summary="Echoes the HTTP method the guard let through"
@@ -39,6 +41,11 @@ blocks = APIRouter(prefix="/blocks", tags=["Building Blocks"])
 )
 @router.delete(
     "/methods/resource", summary="Echoes the HTTP method the guard let through"
+)
+@router.api_route(
+    "/methods/resource",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
 )
 async def method_echo(request: Request) -> dict[str, str]:
     return {"method": request.method}
