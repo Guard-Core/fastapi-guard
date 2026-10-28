@@ -19,6 +19,7 @@ Client -> nginx (port 80) -> gunicorn/uvicorn (port 8000) -> FastAPI + guard mid
 
 ```bash
 cd examples/advanced_app
+export IPINFO_TOKEN=<your token>  # required: free at https://ipinfo.io/signup
 docker compose up --build
 ```
 
@@ -63,7 +64,7 @@ Environment variables (see `.env`):
 
 - `REDIS_URL` - Redis connection string
 - `REDIS_PREFIX` - Key prefix for Redis
-- `IPINFO_TOKEN` - IPInfo API token
+- `IPINFO_TOKEN` - IPInfo API token (required: the country routes need a GeoIP source; the example stops at startup without it, and `docker compose` refuses to start)
 - `WEB_CONCURRENCY` - Number of gunicorn workers
 - `LOG_LEVEL` - Logging level
 

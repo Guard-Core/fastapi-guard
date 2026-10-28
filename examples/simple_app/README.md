@@ -21,6 +21,7 @@ Using Docker Compose
 -------------
 
 ```bash
+export IPINFO_TOKEN=<your token>  # required: free at https://ipinfo.io/signup
 # Start the example app and Redis
 docker compose up
 
@@ -54,7 +55,7 @@ ___
 Environment variables
 ---------------------
 
-- `IPINFO_TOKEN` - Token for IPInfo geolocation (required for country blocking)
+- `IPINFO_TOKEN` - Token for IPInfo geolocation (required: the country routes need a GeoIP source; the example stops at startup without it, and `docker compose` refuses to start)
 - `REDIS_URL` - URL for Redis connection (default: `redis://localhost:6379`)
 - `REDIS_PREFIX` - Prefix for Redis keys (default: `fastapi_guard:`)
 

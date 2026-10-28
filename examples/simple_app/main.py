@@ -250,6 +250,16 @@ def demo_auth_verifier(request: GuardRequest, credential: str) -> dict[str, str]
     return {"user": "demo", "credential": credential}
 
 
+def require_ipinfo_token() -> str:
+    token = os.environ.get("IPINFO_TOKEN", "").strip()
+    if not token:
+        raise SystemExit(
+            "IPINFO_TOKEN is not set: the country routes need a GeoIP source. "
+            "Get a free token at https://ipinfo.io/signup and export IPINFO_TOKEN."
+        )
+    return token
+
+
 security_config = SecurityConfig(
     # IP Configuration
     blacklist=("192.168.100.0/24",),  # Example blacklisted subnet
@@ -259,7 +269,7 @@ security_config = SecurityConfig(
     trust_x_forwarded_proto=True,
     # Geographical Filtering (requires ipinfo_token OR custom implementation)
     # The country routes below need a GeoIP source: set IPINFO_TOKEN in the environment
-    ipinfo_token=os.environ.get("IPINFO_TOKEN"),
+    ipinfo_token=require_ipinfo_token(),
     # blocked_countries=["XX"],  # Example: block country code XX
     # whitelist_countries=[],  # Allow all countries by default
     # Cloud Provider Blocking

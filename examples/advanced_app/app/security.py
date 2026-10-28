@@ -30,13 +30,23 @@ def demo_auth_verifier(request: GuardRequest, credential: str) -> dict[str, str]
     return {"user": "demo", "credential": credential}
 
 
+def require_ipinfo_token() -> str:
+    token = os.environ.get("IPINFO_TOKEN", "").strip()
+    if not token:
+        raise SystemExit(
+            "IPINFO_TOKEN is not set: the country routes need a GeoIP source. "
+            "Get a free token at https://ipinfo.io/signup and export IPINFO_TOKEN."
+        )
+    return token
+
+
 security_config = SecurityConfig(
     whitelist=(),
     blacklist=("192.168.100.0/24",),
     trusted_proxies=("172.16.0.0/12", "10.0.0.0/8"),
     trusted_proxy_depth=1,
     trust_x_forwarded_proto=True,
-    ipinfo_token=os.environ.get("IPINFO_TOKEN"),
+    ipinfo_token=require_ipinfo_token(),
     block_cloud_providers=frozenset({"AWS", "GCP", "Azure"}),
     blocked_user_agents=["badbot", "evil-crawler", "sqlmap"],
     enable_rate_limiting=True,

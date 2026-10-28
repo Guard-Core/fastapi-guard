@@ -114,6 +114,7 @@ from guard import SecurityConfig, SecurityDecorator
 
 config = SecurityConfig(
     auth_verifier=lambda request, credential: {"user": "demo"} if credential else None,
+    ipinfo_token="your_ipinfo_token_here",  # the geo source block_countries needs (free at ipinfo.io)
 )
 guard = SecurityDecorator(config)
 
