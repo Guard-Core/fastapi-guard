@@ -3,10 +3,11 @@ import os
 import sys
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 from fastapi import FastAPI
+from guard_core.handlers import cloud_handler as cloud_handler_module
 from guard_core.handlers.cloud_handler import cloud_handler
 from guard_core.handlers.ipban_handler import reset_global_state
 from guard_core.handlers.ipinfo_handler import IPInfoManager
@@ -30,8 +31,8 @@ from tests.redis_isolation import (
 point_security_config_defaults_at_the_test_redis()
 
 # CI on fork PRs cannot read secrets, so fall back to a dummy token: the suite
-# mocks all IPInfo HTTP traffic and IPInfoManager only requires a non-empty
-# token at construction.
+# refuses all geo and cloud HTTP traffic (`_no_geo_or_cloud_network`) and
+# IPInfoManager only requires a non-empty token at construction.
 IPINFO_TOKEN = os.getenv("IPINFO_TOKEN") or "test_token"
 
 ADVANCED_APP_DIR = Path(__file__).resolve().parents[1] / "examples" / "advanced_app"
@@ -54,6 +55,22 @@ async def _close_redis_handler(redis_handler: RedisManager) -> None:
     except RuntimeError as exc:
         if "Event loop is closed" not in str(exc):
             raise
+
+
+@pytest.fixture(autouse=True)
+def _no_geo_or_cloud_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The suite never reaches ipinfo.io or a cloud provider: a download fails at
+    once, as it does without a network, instead of opening a socket that outlives
+    the test."""
+
+    async def refuse_database(self: IPInfoManager) -> None:
+        raise ConnectionError("the test suite has no network")
+
+    async def refuse_ranges(provider: str) -> NoReturn:
+        raise ConnectionError("the test suite has no network")
+
+    monkeypatch.setattr(IPInfoManager, "_fetch_and_store_database", refuse_database)
+    monkeypatch.setattr(cloud_handler_module, "_fetch_provider_ranges", refuse_ranges)
 
 
 @pytest.fixture(autouse=True)
