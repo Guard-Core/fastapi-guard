@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 
+from guard._middleware_state import _STATE_REGISTRY
 from guard.lifespan import guard_lifespan
 from guard.middleware import SecurityMiddleware
 from tests.redis_isolation import REDIS_URL
@@ -54,7 +55,10 @@ def test_next_request_succeeds_once_redis_initialization_recovers(
         assert second.status_code == 200
 
         assert client.portal is not None
-        client.portal.call(RedisManager(SecurityConfig()).close)
+        for state in list(_STATE_REGISTRY.values()):
+            redis_handler = state.handler_initializer.redis_handler
+            if isinstance(redis_handler, RedisManager):
+                client.portal.call(redis_handler.close)
 
 
 def test_lifespan_warmer_logs_and_continues_when_redis_is_unreachable_at_startup() -> (

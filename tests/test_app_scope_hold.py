@@ -53,7 +53,10 @@ async def cleanup() -> AsyncIterator[list[SecurityConfig]]:
     configs: list[SecurityConfig] = []
     yield configs
     for config in configs:
-        await ip_ban_manager_for(config).unban_ip(PROXY, config=config)
+        manager = ip_ban_manager_for(config)
+        await manager.unban_ip(PROXY, config=config)
+        if manager.redis_handler is not None:
+            await manager.redis_handler.close()
 
 
 @pytest.mark.parametrize("middleware", MIDDLEWARES)
