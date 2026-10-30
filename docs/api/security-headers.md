@@ -59,7 +59,7 @@ security_headers_manager.configure(
     hsts_preload=False,
     frame_options="SAMEORIGIN",
     content_type_options="nosniff",
-    xss_protection="1; mode=block",
+    xss_protection="0",
     referrer_policy="strict-origin-when-cross-origin",
     permissions_policy="geolocation=(), microphone=(), camera=()",
     custom_headers={"X-Custom-Header": "CustomValue"},
@@ -228,7 +228,7 @@ The following headers are configured by default:
 |--------|--------------|-------------|
 | `X-Content-Type-Options` | `nosniff` | Prevents MIME type sniffing |
 | `X-Frame-Options` | `SAMEORIGIN` | Prevents clickjacking attacks |
-| `X-XSS-Protection` | `1; mode=block` | Enables XSS filtering |
+| `X-XSS-Protection` | `0` | Enables XSS filtering |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Controls referrer information |
 | `Permissions-Policy` | `geolocation=(), microphone=(), camera=()` | Restricts browser features |
 | `X-Permitted-Cross-Domain-Policies` | `none` | Restricts Adobe Flash cross-domain access |
@@ -362,7 +362,7 @@ config = SecurityConfig(
         "hsts": {"max_age": 31536000, "include_subdomains": True, "preload": False},
         "frame_options": "DENY",
         "content_type_options": "nosniff",
-        "xss_protection": "1; mode=block",
+        "xss_protection": "0",
         "referrer_policy": "no-referrer",
         "permissions_policy": "geolocation=(), microphone=(), camera=()",
     }

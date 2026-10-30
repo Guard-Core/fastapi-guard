@@ -169,7 +169,7 @@ Default security_headers configuration:
     "csp": None,  # Content Security Policy directives
     "frame_options": "SAMEORIGIN",
     "content_type_options": "nosniff",
-    "xss_protection": "1; mode=block",
+    "xss_protection": "0",
     "referrer_policy": "strict-origin-when-cross-origin",
     "permissions_policy": "geolocation=(), microphone=(), camera=()",
     "custom": None,  # Additional custom headers
@@ -196,7 +196,7 @@ Security Headers Sub-fields
 | `csp` | dict[str, list[str]] | None | Content Security Policy directives |
 | `frame_options` | str | "SAMEORIGIN" | X-Frame-Options value (DENY, SAMEORIGIN) |
 | `content_type_options` | str | "nosniff" | X-Content-Type-Options value |
-| `xss_protection` | str | "1; mode=block" | X-XSS-Protection value |
+| `xss_protection` | str | "0" | X-XSS-Protection value (the 5.0.0 engine default is `0`; set `"1; mode=block"` to restore the earlier default) |
 | `referrer_policy` | str | "strict-origin-when-cross-origin" | Referrer-Policy value |
 | `permissions_policy` | str | See default | Permissions-Policy value |
 | `custom` | dict[str, str] | None | Additional custom headers |
@@ -271,7 +271,7 @@ config = SecurityConfig(
         },
         "frame_options": "DENY",
         "content_type_options": "nosniff",
-        "xss_protection": "1; mode=block",
+        "xss_protection": "0",
         "referrer_policy": "no-referrer",
         "permissions_policy": "geolocation=(), microphone=(), camera=()",
         "custom": {"X-Custom-Header": "CustomValue"},
