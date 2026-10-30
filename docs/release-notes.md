@@ -71,6 +71,8 @@ Unreleased
 
 - **Fixed** - **A WebSocket handshake from a client with no address at all is logged and admitted under `passive_mode`.** Under `fail_secure` it closed `1008` even in passive mode, where every other denial is only logged. It now goes through the same passive path as the other handshake denials (the log line and the `on_block` hook, then the handshake proceeds); outside `passive_mode` it still closes `1008`.
 
+- **Fixed (docs)** - **The docs state how a dynamic rule combines with the config, and what `passive_mode` does for a client with no address.** A dynamic rule adds to your configuration and never wipes it: blocked countries, blocked cloud providers and blocked user agents are added to your static lists, `whitelist_countries` is replaced only when the rule's value is non-empty and valid, and `endpoint_rate_limits` merge per endpoint (the rule's value wins for the endpoints it names, your static limits stay for the rest). A request or WebSocket handshake from a client with no address is refused under `fail_secure` (the default) and logged and admitted under `passive_mode`; the pages that said it passes through or is refused regardless are corrected.
+
 ___
 
 v8.1.2 (2026-10-17)

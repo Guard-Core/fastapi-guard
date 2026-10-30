@@ -491,7 +491,7 @@ class BypassHandler:
 
 **Features**:
 
-- No client IP detection (passthrough)
+- A request with no client address: `403` under `fail_secure` (the default), logged and admitted in `passive_mode`
 - Excluded path handling
 - Decorator bypass support
 - Early exit optimization

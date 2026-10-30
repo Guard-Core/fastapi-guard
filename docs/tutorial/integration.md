@@ -269,6 +269,8 @@ Configuration reference - agent fields on `SecurityConfig`
 | `enable_dynamic_rules` | `bool` | `False` | Pull rule updates from the dashboard at `dynamic_rule_interval`. |
 | `dynamic_rule_interval` | `int` | `300` | Seconds between dynamic-rule polls. |
 
+A dynamic rule adds to your configuration and never wipes it. Blocked countries, blocked cloud providers and blocked user agents are added to your static lists. `whitelist_countries` replaces your allow-list only when the rule's value is non-empty and valid. `endpoint_rate_limits` merge per endpoint: the rule's value wins for the endpoints it names and your static limits stay for the rest. When the rule expires or is revoked, your static configuration applies again, exactly as you wrote it.
+
 ___
 
 Common pitfalls

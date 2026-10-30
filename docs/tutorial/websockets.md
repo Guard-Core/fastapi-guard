@@ -117,7 +117,7 @@ Client Resolution
 
 The client IP is resolved the same way as the HTTP pipeline: `websocket.client.host` if the connection has a peer, or `X-Forwarded-For` when the connecting peer is a trusted proxy (`trusted_proxies`, `trusted_proxy_depth`). A connection with no peer at all (a Unix domain socket, some serverless adapters) needs `"unix"` in `trusted_proxies` to resolve from `X-Forwarded-For`, exactly as for HTTP; see [Proxy Security](security/proxy-security.md#unix-sockets-and-serverless-adapters).
 
-When the client address still cannot be resolved, `guard_websocket` follows the same `fail_secure` setting as the HTTP pipeline: `fail_secure=True` (the default) closes the connection with code `1008` before running any further check; `fail_secure=False` runs the ban, allow-list, and blocked-country checks against identity `"unknown"` (allowed unless a whitelist or a country allow-list is configured) and skips the rate-limit check, since there is no real IP to key a rate-limit bucket on.
+When the client address still cannot be resolved, `guard_websocket` follows the same `fail_secure` setting as the HTTP pipeline: `fail_secure=True` (the default) closes the connection with code `1008` before running any further check, except under `passive_mode`, where the refusal is only logged (and `on_block` is called) and the handshake goes on; `fail_secure=False` runs the ban, allow-list, and blocked-country checks against identity `"unknown"` (allowed unless a whitelist or a country allow-list is configured) and skips the rate-limit check, since there is no real IP to key a rate-limit bucket on.
 
 ___
 
@@ -148,7 +148,7 @@ Each constant is a `WebSocketCloseReason(code, reason)` named tuple; `WS_CLOSE_R
 | 1008 | `IP banned`                                | `ip_ban_manager.is_ip_banned` returned `True`.              |
 | 1008 | `IP not allowed`                           | `is_ip_allowed` returned `False` (whitelist/blacklist, blocked country, blocked cloud provider). |
 | 1008 | `Rate limit exceeded`                      | `check_rate_limit_by_ip` returned `False`.                  |
-| 1008 | `Client address could not be determined`   | No resolvable client identity and `fail_secure=True`.       |
+| 1008 | `Client address could not be determined`   | No resolvable client identity, `fail_secure=True` and not `passive_mode` (passive mode logs it and admits the handshake). |
 | 1013 | `Security check failed`                    | A Redis error during the ban or rate-limit check, or during detection, with `redis_fail_open=False` and `fail_secure=True`; also an exception inside the emergency-mode or user-agent check under `fail_secure=True`. |
 | 1008 | `Suspicious activity detected`             | guard-core's `SuspiciousActivityCheck` flagged the handshake in active mode (`passive_mode=False`). |
 | 1013 | `Service temporarily unavailable`          | `emergency_mode` is on and the client is outside the emergency whitelist, on a path not in `emergency_exempt_paths`. |
