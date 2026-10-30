@@ -412,9 +412,12 @@ async def _run_websocket_checks(
     websocket.state.client_ip = client_ip
 
     if client_ip == UNKNOWN_CLIENT_IDENTITY and config.fail_secure:
-        raise WebSocketException(
-            code=WS_CLOSE_CLIENT_ADDRESS_UNKNOWN.code,
-            reason=WS_CLOSE_CLIENT_ADDRESS_UNKNOWN.reason,
+        await _deny_handshake(
+            guard_request,
+            config,
+            WS_CLOSE_CLIENT_ADDRESS_UNKNOWN,
+            "client_address",
+            "Client address could not be determined",
         )
 
     if config.emergency_mode:

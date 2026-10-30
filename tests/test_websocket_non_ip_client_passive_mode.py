@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from fastapi import Depends, FastAPI, WebSocket
 from fastapi.testclient import TestClient
@@ -7,13 +9,17 @@ from starlette.websockets import WebSocketDisconnect
 from guard import SecurityMiddleware, guard_websocket
 
 
-def _app(passive_mode: bool) -> FastAPI:
+def _app(passive_mode: bool, blocked: list[dict[str, object]]) -> FastAPI:
+    def on_block(request: Any, payload: dict[str, object]) -> None:
+        blocked.append(payload)
+
     config = SecurityConfig(
         enable_redis=False,
         enable_rate_limiting=True,
         passive_mode=passive_mode,
         fail_secure=True,
         trusted_proxies=[],
+        on_block=on_block,
     )
     app = FastAPI()
     app.add_middleware(SecurityMiddleware, config=config)
@@ -31,15 +37,20 @@ def _app(passive_mode: bool) -> FastAPI:
 
 def test_a_non_ip_client_is_closed_1008_outside_passive_mode() -> None:
     # TestClient's default peer is the host name "testclient", not an address.
-    with TestClient(_app(False)) as client:
+    blocked: list[dict[str, object]] = []
+    with TestClient(_app(False, blocked)) as client:
         with pytest.raises(WebSocketDisconnect) as closed:
             with client.websocket_connect("/ws"):
                 pass
 
     assert (closed.value.code, closed.value.reason) == (1008, "IP not allowed")
+    assert blocked == []
 
 
-def test_a_non_ip_client_in_passive_mode_is_admitted_without_an_escaped_error() -> None:
-    with TestClient(_app(True)) as client:
+def test_a_non_ip_client_in_passive_mode_is_admitted_and_logged() -> None:
+    blocked: list[dict[str, object]] = []
+    with TestClient(_app(True, blocked)) as client:
         with client.websocket_connect("/ws") as socket:
             assert socket.receive_text() == "hi"
+
+    assert [payload["passive_mode"] for payload in blocked] == [True]

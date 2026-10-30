@@ -62,6 +62,8 @@ Unreleased
 
 - **Fixed** - **`PureASGISecurityMiddleware` applies `custom_response_modifier` on every route, as the classic middleware does.** The modifier ran only on bypassed routes; on the normal path it was ignored, and so were the response pass's other effects whenever a modifier was set. With a modifier the downstream response now goes through guard-core's response pass (security headers, CORS, metrics, behavior return rules and the modifier on a bounded view of the body) before it is sent, and a parity test pins the Pure and classic answers for the modifier, a usage throttle rule and a return-pattern rule.
 
+- **Fixed** - **A WebSocket handshake from a client with no address at all is logged and admitted under `passive_mode`.** Under `fail_secure` it closed `1008` even in passive mode, where every other denial is only logged. It now goes through the same passive path as the other handshake denials (the log line and the `on_block` hook, then the handshake proceeds); outside `passive_mode` it still closes `1008`.
+
 ___
 
 v8.1.2 (2026-10-17)
