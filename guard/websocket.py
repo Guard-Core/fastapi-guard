@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from typing import NamedTuple
@@ -372,6 +373,12 @@ async def _check_handshake_rate_limit(
     redis_handler: RedisManager | None,
     client_ip: str,
 ) -> None:
+    try:
+        ipaddress.ip_address(client_ip)
+    except ValueError:
+        # An address the rate limiter cannot key: the IP check already refused it
+        # (or logged it under passive_mode, which admits the handshake).
+        return
     allowed = await _guarded_redis_call(
         check_rate_limit_by_ip(
             client_ip, config, redis_handler=redis_handler, endpoint_path="ws"

@@ -56,6 +56,8 @@ Unreleased
 
 - **Fixed** - **Routes under a Starlette `Host(...)` are visible to the route gate, and the Pure ASGI middleware holds the app scope for its preflight.** The helpers the engine asks about a path (`resolve_route`, `allowed_methods`, `static_file_exists`) matched against a request with no `Host`, so a `Host(...)` route was not found: its own `.map` and `.php` routes stayed flagged, a `405` had no `Allow`, endpoint identity was lost. They now match under the request's `Host`. The Pure ASGI middleware also runs the CORS preflight pipeline inside the app's scope, as the classic middleware does.
 
+- **Fixed** - **A WebSocket handshake from a client with no IP address no longer lets a `ValueError` escape under `passive_mode`.** `guard_websocket` logged the refused IP and went on to the rate-limit check, which cannot key a host name such as `testclient`: `check_rate_limit_by_ip: invalid ip` escaped with no close reason. The rate-limit check is now skipped for an address that is not an IP; outside `passive_mode` the IP check still closes the handshake with `1008`.
+
 ___
 
 v8.1.2 (2026-10-17)
