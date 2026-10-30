@@ -173,9 +173,10 @@ class _HeaderInjectingSend:
                 list(message.get("headers", ())),
                 *await self._security_headers(),
             )
-            headers = with_cors_headers(
-                headers, await self._manager_cors_headers(), replace=False
-            )
+            if origin := self._request.headers.get("origin"):
+                headers = with_cors_headers(
+                    headers, await self._manager_cors_headers(origin), replace=False
+                )
             if self._engine._cors_handler is not None:
                 headers = with_cors_headers(
                     headers,
@@ -189,12 +190,9 @@ class _HeaderInjectingSend:
             self._keep_body_prefix(message.get("body", b""))
         await self._send(message)
 
-    async def _manager_cors_headers(self) -> dict[str, str]:
+    async def _manager_cors_headers(self, origin: str) -> dict[str, str]:
         # The headers the classic response pass adds: the manager's CORS state,
         # which carries a runtime override as well as the app's own settings.
-        origin = self._request.headers.get("origin")
-        if not origin:
-            return {}
         engine = self._engine
         manager = getattr(
             engine.response_factory,
