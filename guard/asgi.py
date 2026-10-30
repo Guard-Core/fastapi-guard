@@ -25,9 +25,10 @@ Response-side differences from `SecurityMiddleware`:
   prefix of the streamed body, never the whole body.
 - On bypassed routes the downstream response is handed to guard-core as a
   streaming `Response` (never buffered), so `custom_response_modifier` runs
-  there as it does in the classic middleware. On the normal path
-  `custom_response_modifier` needs a materialized `Response` object and is
-  only applied by the `BaseHTTPMiddleware`-based middleware.
+  there as it does in the classic middleware. On the normal path a
+  `custom_response_modifier` makes the response go through guard-core's
+  response pass, as in the classic middleware: the downstream response is
+  handed over as a streaming `Response`, never buffered by the middleware.
 
 The downstream app receives a replaying receive channel, so both guard and
 the application can read the request body.
@@ -379,6 +380,12 @@ class PureASGISecurityMiddleware:
             await self._send_response(throttled, request, wrapped_send._send)
             return
 
+        if engine.config.custom_response_modifier is not None:
+            await self._respond_through_the_response_pass(
+                request, route_config, wrapped_send._send, downstream
+            )
+            return
+
         await self._call_downstream(
             scope, caching_receive.replay(), wrapped_send, start_time
         )
@@ -386,6 +393,26 @@ class PureASGISecurityMiddleware:
             guard_request, client_ip, route_config, wrapped_send
         )
         await self._record_metrics(guard_request, wrapped_send, start_time)
+
+    async def _respond_through_the_response_pass(
+        self,
+        request: Request,
+        route_config: RouteConfig | None,
+        send: Send,
+        downstream: "_InlineDownstream | _StreamedDownstream",
+    ) -> None:
+        """The classic response pass for a `custom_response_modifier`: the
+        downstream response goes through guard-core's `process_response`
+        (security headers, CORS, metrics, return rules and the modifier on a
+        bounded view of the body) before it is sent."""
+        engine = self._engine
+        started_at = time.time()
+        response = await downstream.call_next(request)
+        processed = await engine._process_response(
+            request, response, time.time() - started_at, route_config
+        )
+        engine._inject_cors_headers(processed, request.headers)
+        await self._send_downstream_response(processed, request, send, downstream)
 
     async def _run_behavior_return_rules(
         self,

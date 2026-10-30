@@ -60,6 +60,8 @@ Unreleased
 
 - **Fixed** - **The advanced example's state-changing `/blocks` routes are restricted to localhost.** `POST /blocks/patterns` (adds and removes a detection pattern), `GET /blocks/behavior` and `GET /blocks/rate-limit` (write usage and rate-limit state against fixed shared addresses) were public, so a copied example inherited a public configuration mutator. They carry `@guard.require_ip(whitelist=["127.0.0.1"])` like the `/admin` routes.
 
+- **Fixed** - **`PureASGISecurityMiddleware` applies `custom_response_modifier` on every route, as the classic middleware does.** The modifier ran only on bypassed routes; on the normal path it was ignored, and so were the response pass's other effects whenever a modifier was set. With a modifier the downstream response now goes through guard-core's response pass (security headers, CORS, metrics, behavior return rules and the modifier on a bounded view of the body) before it is sent, and a parity test pins the Pure and classic answers for the modifier, a usage throttle rule and a return-pattern rule.
+
 ___
 
 v8.1.2 (2026-10-17)
