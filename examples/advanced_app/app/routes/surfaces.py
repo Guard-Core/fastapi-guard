@@ -10,7 +10,7 @@ from guard_core.handlers.behavior_handler import BehaviorTracker
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 
-from app.security import security_config
+from app.security import guard, security_config
 from guard import (
     BehaviorRule,
     BoundedBodyReader,
@@ -107,6 +107,7 @@ async def security_headers() -> dict[str, Any]:
 
 
 @blocks.get("/behavior")
+@guard.require_ip(whitelist=["127.0.0.1"])
 async def behavior(request: Request) -> dict[str, Any]:
     rule = BehaviorRule("usage", threshold=2, window=60, action="log")
     tracker = BehaviorTracker(security_config)
@@ -129,6 +130,7 @@ async def behavior(request: Request) -> dict[str, Any]:
 
 
 @blocks.get("/rate-limit")
+@guard.require_ip(whitelist=["127.0.0.1"])
 async def rate_limit(request: Request) -> dict[str, bool]:
     manager = RateLimitManager(security_config)
 
@@ -149,6 +151,7 @@ async def rate_limit(request: Request) -> dict[str, bool]:
 
 
 @blocks.post("/patterns")
+@guard.require_ip(whitelist=["127.0.0.1"])
 async def custom_pattern(
     action: str = Body(...), pattern_reversed: str = Body(...)
 ) -> dict[str, bool]:

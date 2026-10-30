@@ -58,6 +58,8 @@ Unreleased
 
 - **Fixed** - **A WebSocket handshake from a client with no IP address no longer lets a `ValueError` escape under `passive_mode`.** `guard_websocket` logged the refused IP and went on to the rate-limit check, which cannot key a host name such as `testclient`: `check_rate_limit_by_ip: invalid ip` escaped with no close reason. The rate-limit check is now skipped for an address that is not an IP; outside `passive_mode` the IP check still closes the handshake with `1008`.
 
+- **Fixed** - **The advanced example's state-changing `/blocks` routes are restricted to localhost.** `POST /blocks/patterns` (adds and removes a detection pattern), `GET /blocks/behavior` and `GET /blocks/rate-limit` (write usage and rate-limit state against fixed shared addresses) were public, so a copied example inherited a public configuration mutator. They carry `@guard.require_ip(whitelist=["127.0.0.1"])` like the `/admin` routes.
+
 ___
 
 v8.1.2 (2026-10-17)
