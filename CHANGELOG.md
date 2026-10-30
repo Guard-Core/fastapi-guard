@@ -48,6 +48,8 @@ Unreleased
 
 - **Fixed** - **`PureASGISecurityMiddleware` no longer loses a body chunk after a stalled read.** With `fail_secure=False` a client that stalled past `body_read_timeout` made guard abandon its in-flight `receive()`; the chunk that arrived afterwards was dropped and the application failed with `ClientDisconnect`. The replay now waits for the abandoned read and hands its message to the application, as the classic middleware does.
 
+- **Fixed** - **`PureASGISecurityMiddleware` applies the runtime CORS override.** A `configure(enable_cors=True, override_apps=True)` override reached the classic middleware's responses and not the Pure ASGI middleware's, which only added the app's own `Access-Control-Allow-Origin`. It now adds the CORS headers of the headers manager (the override and the app's own settings), and an `Access-Control-*` header the application set still wins.
+
 ___
 
 v8.1.2 (2026-10-17)
