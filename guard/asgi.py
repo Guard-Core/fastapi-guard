@@ -47,6 +47,7 @@ from guard_core.models import SecurityConfig
 from guard_core.utils import extract_client_ip
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
+from starlette.routing import get_route_path
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from guard._response_headers import (
@@ -218,7 +219,7 @@ async def _security_headers_for(
         engine.response_factory, "security_headers_manager", security_headers_manager
     )
     headers = await manager.get_headers(
-        request_path=request.url.path, config=engine.config
+        request_path=get_route_path(request.scope), config=engine.config
     )
     return headers, getattr(headers, "forced", frozenset())
 

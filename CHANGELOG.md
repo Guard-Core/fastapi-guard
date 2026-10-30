@@ -52,6 +52,8 @@ Unreleased
 
 - **Fixed** - **`PureASGISecurityMiddleware` serves a response start without `headers`.** ASGI makes `headers` optional on `http.response.start`; a status-only application raised `KeyError`. The guard and CORS headers are now added to an empty list.
 
+- **Fixed** - **The Pure ASGI middleware gives the security headers manager the path without the root path.** It passed `request.url.path`, which carries the `root_path` prefix, where the classic middleware passes the route path; the "headers applied" agent event named the prefixed path. It now uses the route path.
+
 ___
 
 v8.1.2 (2026-10-17)
