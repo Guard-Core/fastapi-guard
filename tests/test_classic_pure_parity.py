@@ -88,3 +88,29 @@ def test_a_return_pattern_rule_acts_the_same_in_both_middlewares(action: str) ->
     )
 
     assert pure == classic
+
+
+def test_a_request_refused_before_the_app_runs_is_refused_with_a_modifier() -> None:
+    blocked = f"203.0.113.{next(_PEERS)}"
+    statuses = []
+    for middleware in (SecurityMiddleware, PureASGISecurityMiddleware):
+        app = FastAPI()
+        app.add_middleware(
+            middleware,
+            config=SecurityConfig(
+                enable_redis=False,
+                enable_penetration_detection=False,
+                trusted_proxies=[],
+                blacklist=[blocked],
+                custom_response_modifier=_modifier,
+            ),
+        )
+
+        @app.get("/ok")
+        async def ok() -> dict[str, int]:
+            return {"ok": 1}
+
+        with TestClient(app, client=(blocked, 5000)) as client:
+            statuses.append(client.get("/ok").status_code)
+
+    assert statuses == [403, 403]
