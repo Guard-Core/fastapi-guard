@@ -637,11 +637,15 @@ async def test_guard_websocket_initializes_the_manager_when_it_is_not_initialize
             with client.websocket_connect("/ws"):
                 pass
 
+        final_instance: RedisManager | None = RedisManager._instance
+        assert final_instance is not None
+        assert final_instance._redis is not None
+        # Closed in the loop that opened it, before the portal stops.
+        assert client.portal is not None
+        client.portal.call(final_instance.close)
+
     assert exc_info.value.code == 1008
     assert exc_info.value.reason == "Rate limit exceeded"
-    final_instance: RedisManager | None = RedisManager._instance
-    assert final_instance is not None
-    assert final_instance._redis is not None
 
 
 async def test_guard_websocket_reuses_the_middlewares_redis_manager(

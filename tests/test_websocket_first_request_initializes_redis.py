@@ -1,15 +1,18 @@
 import logging
 import os
 import uuid
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
 import redis
 from fastapi import Depends, FastAPI, WebSocket
 from fastapi.testclient import TestClient
+from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from starlette.websockets import WebSocketDisconnect
 
+from guard._middleware_state import _STATE_REGISTRY
 from guard.middleware import SecurityMiddleware
 from guard.websocket import WS_CLOSE_EMERGENCY_MODE, guard_websocket
 
@@ -51,8 +54,29 @@ def _config(
     )
 
 
-def _client(app: FastAPI) -> TestClient:
-    return TestClient(app, client=("127.0.0.1", 12345))
+ClientFactory = Callable[[FastAPI], TestClient]
+
+
+@pytest.fixture
+def make_client() -> Iterator[ClientFactory]:
+    """Clients that stay entered, so the app's Redis connections live in the
+    portal's loop and are closed there before it stops."""
+    clients: list[TestClient] = []
+
+    def make(app: FastAPI) -> TestClient:
+        client = TestClient(app, client=("127.0.0.1", 12345))
+        client.__enter__()
+        clients.append(client)
+        return client
+
+    yield make
+    for client in clients:
+        assert client.portal is not None
+        for state in list(_STATE_REGISTRY.values()):
+            redis_handler = state.handler_initializer.redis_handler
+            if isinstance(redis_handler, RedisManager):
+                client.portal.call(redis_handler.close)
+        client.__exit__(None, None, None)
 
 
 def _refusal(client: TestClient) -> WebSocketDisconnect:
@@ -62,11 +86,13 @@ def _refusal(client: TestClient) -> WebSocketDisconnect:
     return refused.value
 
 
-def test_websocket_as_first_request_writes_its_rate_key_to_redis() -> None:
+def test_websocket_as_first_request_writes_its_rate_key_to_redis(
+    make_client: ClientFactory,
+) -> None:
     config = _config(REDIS_URL)
-    with _client(_app(config)) as client:
-        with client.websocket_connect("/ws") as websocket:
-            assert websocket.receive_text() == "connected"
+    client = make_client(_app(config))
+    with client.websocket_connect("/ws") as websocket:
+        assert websocket.receive_text() == "connected"
     reader = redis.Redis.from_url(REDIS_URL)
     keys = list(reader.scan_iter(match=f"{config.redis_prefix}*"))
     try:
@@ -77,9 +103,11 @@ def test_websocket_as_first_request_writes_its_rate_key_to_redis() -> None:
         reader.close()
 
 
-def test_unreachable_redis_refuses_handshake_and_http_then_recovers() -> None:
+def test_unreachable_redis_refuses_handshake_and_http_then_recovers(
+    make_client: ClientFactory,
+) -> None:
     config = _config(UNREACHABLE_REDIS_URL)
-    client = _client(_app(config))
+    client = make_client(_app(config))
 
     refusal = _refusal(client)
     assert refusal.code == WS_CLOSE_EMERGENCY_MODE.code == 1013
@@ -94,8 +122,10 @@ def test_unreachable_redis_refuses_handshake_and_http_then_recovers() -> None:
     reader.close()
 
 
-def test_unreachable_redis_with_fail_open_admits_handshake_and_http() -> None:
-    client = _client(_app(_config(UNREACHABLE_REDIS_URL, redis_fail_open=True)))
+def test_unreachable_redis_with_fail_open_admits_handshake_and_http(
+    make_client: ClientFactory,
+) -> None:
+    client = make_client(_app(_config(UNREACHABLE_REDIS_URL, redis_fail_open=True)))
 
     with client.websocket_connect("/ws") as websocket:
         assert websocket.receive_text() == "connected"
@@ -103,9 +133,9 @@ def test_unreachable_redis_with_fail_open_admits_handshake_and_http() -> None:
 
 
 def test_passive_mode_logs_the_refusal_and_admits_the_handshake(
-    caplog: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture, make_client: ClientFactory
 ) -> None:
-    client = _client(_app(_config(UNREACHABLE_REDIS_URL, passive_mode=True)))
+    client = make_client(_app(_config(UNREACHABLE_REDIS_URL, passive_mode=True)))
 
     with caplog.at_level(logging.INFO, logger="guard_core"):
         with client.websocket_connect("/ws") as websocket:
@@ -114,7 +144,7 @@ def test_passive_mode_logs_the_refusal_and_admits_the_handshake(
 
 
 def test_refused_cold_handshakes_construct_the_middleware_at_most_once(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, make_client: ClientFactory
 ) -> None:
     built: list[int] = []
     original = SecurityMiddleware.__init__
@@ -124,7 +154,7 @@ def test_refused_cold_handshakes_construct_the_middleware_at_most_once(
         original(self, *args, **kwargs)
 
     config = _config(UNREACHABLE_REDIS_URL)
-    client = _client(_app(config))
+    client = make_client(_app(config))
     monkeypatch.setattr(SecurityMiddleware, "__init__", counting_init)
 
     _refusal(client)
