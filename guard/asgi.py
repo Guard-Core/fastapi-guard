@@ -164,10 +164,10 @@ class _HeaderInjectingSend:
             self.started_at = time.time()
             self.app_headers = {
                 key.decode("latin-1"): value.decode("latin-1")
-                for key, value in message["headers"]
+                for key, value in message.get("headers", ())
             }
             headers = with_default_headers(
-                list(message["headers"]),
+                list(message.get("headers", ())),
                 *await self._security_headers(),
             )
             headers = with_cors_headers(
@@ -519,7 +519,7 @@ class _InlineDownstream:
     async def _headers_with_guard(self, start: Message) -> list[tuple[bytes, bytes]]:
         engine = self._middleware._engine
         headers = with_default_headers(
-            list(start["headers"]),
+            list(start.get("headers", ())),
             *await _security_headers_for(engine, self._request),
         )
         cors_handler = engine._cors_handler
@@ -590,7 +590,7 @@ class _StreamedDownstream:
         self._task = asyncio.create_task(self._run_downstream())
         message = await self._take_response_start()
         response = StreamingResponse(self._stream_body(), status_code=message["status"])
-        response.raw_headers = list(message["headers"])
+        response.raw_headers = list(message.get("headers", ()))
         return response
 
     async def _take_response_start(self) -> Message:

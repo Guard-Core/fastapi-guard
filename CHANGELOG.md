@@ -50,6 +50,8 @@ Unreleased
 
 - **Fixed** - **`PureASGISecurityMiddleware` applies the runtime CORS override.** A `configure(enable_cors=True, override_apps=True)` override reached the classic middleware's responses and not the Pure ASGI middleware's, which only added the app's own `Access-Control-Allow-Origin`. It now adds the CORS headers of the headers manager (the override and the app's own settings), and an `Access-Control-*` header the application set still wins.
 
+- **Fixed** - **`PureASGISecurityMiddleware` serves a response start without `headers`.** ASGI makes `headers` optional on `http.response.start`; a status-only application raised `KeyError`. The guard and CORS headers are now added to an empty list.
+
 ___
 
 v8.1.2 (2026-10-17)
