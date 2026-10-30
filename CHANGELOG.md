@@ -54,6 +54,8 @@ Unreleased
 
 - **Fixed** - **The Pure ASGI middleware gives the security headers manager the path without the root path.** It passed `request.url.path`, which carries the `root_path` prefix, where the classic middleware passes the route path; the "headers applied" agent event named the prefixed path. It now uses the route path.
 
+- **Fixed** - **Routes under a Starlette `Host(...)` are visible to the route gate, and the Pure ASGI middleware holds the app scope for its preflight.** The helpers the engine asks about a path (`resolve_route`, `allowed_methods`, `static_file_exists`) matched against a request with no `Host`, so a `Host(...)` route was not found: its own `.map` and `.php` routes stayed flagged, a `405` had no `Allow`, endpoint identity was lost. They now match under the request's `Host`. The Pure ASGI middleware also runs the CORS preflight pipeline inside the app's scope, as the classic middleware does.
+
 ___
 
 v8.1.2 (2026-10-17)

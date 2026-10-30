@@ -55,6 +55,7 @@ from guard._response_headers import (
     with_cors_headers,
     with_default_headers,
 )
+from guard._route_gate_host import hold_route_gate_host, release_route_gate_host
 from guard.adapters import StarletteGuardRequest, wrap_call_next
 from guard.middleware import SecurityMiddleware, _sample_init_outage_line
 
@@ -284,6 +285,25 @@ class PureASGISecurityMiddleware:
             await self._send_response(response, request, wrapped_send._send)
             return
 
+        token = hold_app_scope(engine.config)
+        host_token = hold_route_gate_host(request.headers.get("host", ""))
+        try:
+            await self._screen_initialized(
+                request, caching_receive, wrapped_send, scope, start_time
+            )
+        finally:
+            release_route_gate_host(host_token)
+            release_app_scope(token)
+
+    async def _screen_initialized(
+        self,
+        request: Request,
+        caching_receive: _BodyCachingReceive,
+        wrapped_send: _HeaderInjectingSend,
+        scope: Scope,
+        start_time: float,
+    ) -> None:
+        engine = self._engine
         guard_request = StarletteGuardRequest(request)
         engine._populate_guard_state(guard_request, request)
 
@@ -299,7 +319,6 @@ class PureASGISecurityMiddleware:
             )
         else:
             downstream = _StreamedDownstream(self, scope, caching_receive)
-        token = hold_app_scope(engine.config)
         try:
             await self._screen_after_preflight(
                 request,
@@ -311,7 +330,6 @@ class PureASGISecurityMiddleware:
                 downstream,
             )
         finally:
-            release_app_scope(token)
             await downstream.close()
 
     async def _screen_after_preflight(

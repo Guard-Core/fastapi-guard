@@ -42,6 +42,11 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Scope
 
 from guard._response_headers import merge_vary
+from guard._route_gate_host import (
+    hold_route_gate_host,
+    release_route_gate_host,
+    route_gate_host,
+)
 from guard.adapters import (
     StarletteGuardRequest,
     StarletteResponseFactory,
@@ -591,7 +596,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             "path": path,
             "root_path": "",
             "method": "GET",
-            "headers": [],
+            "headers": [(b"host", route_gate_host().encode("latin-1"))],
             "app": self._routing_app,
         }
 
@@ -748,9 +753,11 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             return response
 
         token = hold_app_scope(self.config)
+        host_token = hold_route_gate_host(request.headers.get("host", ""))
         try:
             return await self._dispatch_after_init(request, call_next)
         finally:
+            release_route_gate_host(host_token)
             release_app_scope(token)
 
     async def _dispatch_after_init(
