@@ -55,7 +55,7 @@ from guard._response_headers import (
     with_default_headers,
 )
 from guard.adapters import StarletteGuardRequest, wrap_call_next
-from guard.middleware import SecurityMiddleware
+from guard.middleware import SecurityMiddleware, _sample_init_outage_line
 
 _BOOL_TRUE = frozenset({"1", "true", "yes", "on"})
 
@@ -238,6 +238,15 @@ class PureASGISecurityMiddleware:
         try:
             await engine._ensure_initialized(request)
         except GuardRedisError as e:
+            if engine.config.passive_mode:
+                if _sample_init_outage_line():
+                    engine.logger.error(
+                        "Redis unavailable during initialization: %s "
+                        "(passive_mode=True, request passed through unguarded)",
+                        e,
+                    )
+                await self.app(scope, caching_receive.replay(), wrapped_send._send)
+                return
             engine.logger.error("Redis unavailable during initialization: %s", e)
             response = await engine._redis_unavailable_response()
             await self._send_response(response, request, wrapped_send._send)

@@ -44,6 +44,8 @@ Unreleased
 
 - **Added** - **Python 3.15 is supported.** `requires-python` is now `>=3.10,<3.16` and 3.15 joins the test matrix as a required version.
 
+- **Fixed** - **`PureASGISecurityMiddleware` honours `passive_mode` when Redis is down at initialization.** It answered `503` with `Retry-After` while the classic middleware admits the request. Under `passive_mode` it now passes the request to the application unguarded with the same sampled log line, and without `passive_mode` the answer stays `503`.
+
 ___
 
 v8.1.2 (2026-10-17)
