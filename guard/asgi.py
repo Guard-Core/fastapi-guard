@@ -65,34 +65,46 @@ class _BodyCachingReceive:
 
     Guard needs the body for penetration and custom-request checks; the
     downstream application still expects to read it afterwards. Chunks are
-    buffered on the first pass and replayed to the app in order.
+    buffered on the first pass and replayed to the app in order. A read that
+    guard abandoned at the idle deadline keeps running: the replay waits for
+    it, so its message reaches the app instead of being lost.
     """
 
     def __init__(self, receive: Receive) -> None:
         self._receive = receive
         self._cached: list[Message] = []
         self._body_done = False
+        self._in_flight = 0
+        self._arrived = asyncio.Event()
 
     async def __call__(self) -> Message:
-        message = await self._receive()
-        if message["type"] == "http.request":
+        self._in_flight += 1
+        try:
+            message = await self._receive()
             self._cached.append(message)
-            if not message.get("more_body", False):
+            if message["type"] == "http.request" and not message.get(
+                "more_body", False
+            ):
                 self._body_done = True
-        return message
+            return message
+        finally:
+            self._in_flight -= 1
+            self._arrived.set()
 
     def replay(self) -> Receive:
         """Return a receive callable that yields the cached body, then
         continues streaming from the original receive (disconnect waits)."""
-        messages = list(self._cached)
-        index = {"i": 0}
+        index = 0
         inner = self._receive
 
         async def replay_receive() -> Message:
-            i = index["i"]
-            if i < len(messages):
-                index["i"] = i + 1
-                return messages[i]
+            nonlocal index
+            while index >= len(self._cached) and self._in_flight:
+                self._arrived.clear()
+                await self._arrived.wait()
+            if index < len(self._cached):
+                index += 1
+                return self._cached[index - 1]
             return await inner()
 
         return replay_receive

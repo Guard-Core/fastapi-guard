@@ -46,6 +46,8 @@ Unreleased
 
 - **Fixed** - **`PureASGISecurityMiddleware` honours `passive_mode` when Redis is down at initialization.** It answered `503` with `Retry-After` while the classic middleware admits the request. Under `passive_mode` it now passes the request to the application unguarded with the same sampled log line, and without `passive_mode` the answer stays `503`.
 
+- **Fixed** - **`PureASGISecurityMiddleware` no longer loses a body chunk after a stalled read.** With `fail_secure=False` a client that stalled past `body_read_timeout` made guard abandon its in-flight `receive()`; the chunk that arrived afterwards was dropped and the application failed with `ClientDisconnect`. The replay now waits for the abandoned read and hands its message to the application, as the classic middleware does.
+
 ___
 
 v8.1.2 (2026-10-17)
