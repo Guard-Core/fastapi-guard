@@ -1,5 +1,4 @@
 from collections.abc import AsyncIterator
-from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -8,6 +7,8 @@ from guard_core.handlers.security_headers_handler import security_headers_manage
 from guard_core.models import SecurityConfig
 
 from guard import PureASGISecurityMiddleware, SecurityMiddleware
+
+MiddlewareClass = type[SecurityMiddleware] | type[PureASGISecurityMiddleware]
 
 ORIGIN = "https://a.example"
 
@@ -19,7 +20,9 @@ async def _reset_headers_manager() -> AsyncIterator[None]:
     await security_headers_manager.reset()
 
 
-def _cors_headers(middleware: type[Any], config: SecurityConfig) -> dict[str, str]:
+def _cors_headers(
+    middleware: MiddlewareClass, config: SecurityConfig
+) -> dict[str, str]:
     app = FastAPI()
     app.add_middleware(middleware, config=config)
 
@@ -43,7 +46,7 @@ def _config() -> SecurityConfig:
         enable_redis=False,
         enable_rate_limiting=False,
         enable_cors=False,
-        trusted_proxies=[],
+        trusted_proxies=(),
     )
 
 

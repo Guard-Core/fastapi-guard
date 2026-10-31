@@ -8,14 +8,16 @@ from starlette.types import ASGIApp, Message
 
 from guard import PureASGISecurityMiddleware, SecurityMiddleware
 
+MiddlewareClass = type[SecurityMiddleware] | type[PureASGISecurityMiddleware]
 
-def _app(middleware: type[Any]) -> FastAPI:
+
+def _app(middleware: MiddlewareClass) -> FastAPI:
     config = SecurityConfig(
         enable_redis=False,
         enable_rate_limiting=False,
         fail_secure=False,
         body_read_timeout=0.2,
-        trusted_proxies=[],
+        trusted_proxies=(),
     )
     app = FastAPI()
     app.add_middleware(middleware, config=config)
@@ -74,7 +76,7 @@ async def _drive(app: ASGIApp, chunks: list[tuple[float, bytes]]) -> dict[str, A
 
 @pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
 async def test_a_chunk_that_arrives_after_the_idle_deadline_reaches_the_app(
-    middleware: type[Any],
+    middleware: MiddlewareClass,
 ) -> None:
     out = await _drive(_app(middleware), [(0, b"a" * 10), (0.6, b"b" * 10)])
 

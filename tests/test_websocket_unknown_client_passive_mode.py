@@ -17,7 +17,7 @@ def _app(passive_mode: bool, blocked: list[dict[str, object]]) -> FastAPI:
         enable_rate_limiting=True,
         passive_mode=passive_mode,
         fail_secure=True,
-        trusted_proxies=[],
+        trusted_proxies=(),
         on_block=on_block,
     )
     app = FastAPI()

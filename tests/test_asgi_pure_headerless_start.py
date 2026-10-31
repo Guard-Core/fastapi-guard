@@ -13,7 +13,7 @@ async def test_a_response_start_without_headers_is_served_with_guard_headers() -
     app = PureASGISecurityMiddleware(
         _status_only_app,
         config=SecurityConfig(
-            enable_redis=False, enable_rate_limiting=False, trusted_proxies=[]
+            enable_redis=False, enable_rate_limiting=False, trusted_proxies=()
         ),
     )
     scope: Scope = {

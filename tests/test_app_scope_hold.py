@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from guard_core._utils.app_scope import _current_app_scope, app_scope_of
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
+from guard_core.handlers.redis_handler import RedisManager
 from httpx import ASGITransport, AsyncClient
 from starlette.types import Receive, Scope, Send
 
@@ -55,7 +56,7 @@ async def cleanup() -> AsyncIterator[list[SecurityConfig]]:
     for config in configs:
         manager = ip_ban_manager_for(config)
         await manager.unban_ip(PROXY, config=config)
-        if manager.redis_handler is not None:
+        if isinstance(manager.redis_handler, RedisManager):
             await manager.redis_handler.close()
 
 

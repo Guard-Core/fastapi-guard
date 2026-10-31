@@ -1,5 +1,5 @@
 import itertools
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -8,6 +8,8 @@ from guard_core.models import BehaviorRuleConfig, SecurityConfig
 from guard_core.protocols import GuardResponse
 
 from guard import PureASGISecurityMiddleware, SecurityMiddleware
+
+MiddlewareClass = type[SecurityMiddleware] | type[PureASGISecurityMiddleware]
 
 _PATHS = ["/missing", "/ok", "/ok", "/ok", "/ok"]
 _PEERS = itertools.count(10)
@@ -18,11 +20,13 @@ async def _modifier(response: GuardResponse) -> GuardResponse:
     return response
 
 
-def _observed(middleware: type[Any], **fields: Any) -> list[tuple[int, str | None]]:
+def _observed(
+    middleware: MiddlewareClass, **fields: Any
+) -> list[tuple[int, str | None]]:
     config = SecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
-        trusted_proxies=[],
+        trusted_proxies=(),
         **fields,
     )
     app = FastAPI()
@@ -73,7 +77,9 @@ def test_a_usage_throttle_rule_answers_429_in_both_middlewares() -> None:
 
 
 @pytest.mark.parametrize("action", ["ban", "log"])
-def test_a_return_pattern_rule_acts_the_same_in_both_middlewares(action: str) -> None:
+def test_a_return_pattern_rule_acts_the_same_in_both_middlewares(
+    action: Literal["ban", "log", "throttle", "alert"],
+) -> None:
     classic, pure = _both(
         global_behavior_rules=[
             BehaviorRuleConfig(
@@ -100,8 +106,8 @@ def test_a_request_refused_before_the_app_runs_is_refused_with_a_modifier() -> N
             config=SecurityConfig(
                 enable_redis=False,
                 enable_penetration_detection=False,
-                trusted_proxies=[],
-                blacklist=[blocked],
+                trusted_proxies=(),
+                blacklist=(blocked,),
                 custom_response_modifier=_modifier,
             ),
         )

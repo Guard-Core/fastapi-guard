@@ -28,7 +28,7 @@ def _engine(static_root: Path) -> SecurityMiddleware:
     engine = SecurityMiddleware(
         app,
         config=SecurityConfig(
-            enable_redis=False, enable_rate_limiting=False, trusted_proxies=[]
+            enable_redis=False, enable_rate_limiting=False, trusted_proxies=()
         ),
     )
     engine._routing_app = app

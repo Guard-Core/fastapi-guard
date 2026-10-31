@@ -8,10 +8,12 @@ from guard_core.models import SecurityConfig
 
 from guard import PureASGISecurityMiddleware, SecurityMiddleware
 
+MiddlewareClass = type[SecurityMiddleware] | type[PureASGISecurityMiddleware]
+
 
 @pytest.mark.parametrize("middleware", [SecurityMiddleware, PureASGISecurityMiddleware])
 def test_the_headers_manager_is_given_the_path_without_the_root_path(
-    middleware: type[Any], monkeypatch: pytest.MonkeyPatch
+    middleware: MiddlewareClass, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     seen: list[str | None] = []
     original = SecurityHeadersManager.get_headers
@@ -30,7 +32,7 @@ def test_the_headers_manager_is_given_the_path_without_the_root_path(
     app.add_middleware(
         middleware,
         config=SecurityConfig(
-            enable_redis=False, enable_rate_limiting=False, trusted_proxies=[]
+            enable_redis=False, enable_rate_limiting=False, trusted_proxies=()
         ),
     )
 
