@@ -103,9 +103,10 @@ This function lives in `guard_core.handlers._suspatterns_state`. All four compon
 ### 1. Request Reception
 
 ```python
-# In SuspiciousActivityCheck (guard_core.core.checks.implementations.suspicious_activity)
+# In SuspiciousActivityCheck (guard_core.core.checks.implementations.suspicious_activity),
+# through detect_penetration_patterns() in guard_core.core.checks.helpers
 if self.config.enable_penetration_detection:
-    result = detect_penetration_attempt(request, self.config, route_config)
+    result = await detect_penetration_attempt(request, self.config, route_config)
     if result.is_threat:
         # Handle detected attack
         # result.trigger_info       -> human-readable trigger
@@ -126,7 +127,8 @@ def detect_penetration_attempt(
 ) -> DetectionResult:
     # Extract content from the request: query parameters, the request body
     # (JSON values are walked key by key), the path and the headers, each
-    # tagged with its context ("query_param:<name>", "body", "path", "header:<name>"),
+    # tagged with its context ("query_param:<name>", "header:<name>", "url_path",
+    # "request_body" and its sub-contexts such as "request_body:form_field"),
     # honouring excluded_detection_params, excluded_detection_headers,
     # excluded_detection_body_fields and the scan budgets
     # (detection_max_scan_values, detection_max_json_depth, detection_max_scan_chars)
@@ -136,10 +138,10 @@ def detect_penetration_attempt(
 ### 3. Detection Process
 
 ```python
-def scan(contents_to_check, patterns_manager, client_ip, correlation_id):
+async def scan(contents_to_check, patterns_manager, client_ip, correlation_id):
     # For each content piece
     for content, context in contents_to_check:
-        result = patterns_manager.detect(
+        result = await patterns_manager.detect(
             content=content,
             ip_address=client_ip,
             context=context,
@@ -155,7 +157,7 @@ def scan(contents_to_check, patterns_manager, client_ip, correlation_id):
 A simplified sketch of `SusPatternsManager.detect()` (the real flow is in `guard_core.handlers._suspatterns_enhanced` and `suspatterns_handler`):
 
 ```python
-def detect(
+async def detect(
     self,
     content: str,
     ip_address: str,
@@ -168,9 +170,11 @@ def detect(
     timeouts = []
 
     # 1. Preprocess content: normalize, decode, truncate
-    processed_content, decode_budget_exhausted, decoded = self._preprocess_content(
-        content, correlation_id
-    )
+    (
+        processed_content,
+        decode_budget_exhausted,
+        decoded,
+    ) = await self._preprocess_content(content, correlation_id)
 
     # 2. Pattern matching: each pattern runs through the PatternCompiler's
     #    timeout-protected matchers
@@ -180,14 +184,16 @@ def detect(
     #    -> a pattern that exceeds its time budget is added to `timeouts`
 
     # 3. Semantic analysis (skipped for binary content)
-    semantic_threats, semantic_score = self._check_semantic_threats(processed_content)
+    semantic_threats, semantic_score = await self._check_semantic_threats(
+        processed_content
+    )
     #    -> {"type": "semantic", "attack_type": ..., "probability": ...,
     #        "analysis": ...}, added when the score is above
     #       detection_semantic_threshold
     threats.extend(semantic_threats)
 
     # 4. Performance tracking: every executed pattern is recorded with
-    #    performance_monitor.record_metric(pattern, execution_time,
+    #    await performance_monitor.record_metric(pattern, execution_time,
     #                                      content_length, matched, timeout)
 
     # 5. Build result

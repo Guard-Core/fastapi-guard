@@ -83,6 +83,39 @@ async def _teardown():
     await security_headers_manager.reset()
     await sus_patterns_handler.reset()
 """
+ALT_PRELUDE = """
+from typing import *
+import dataclasses, ipaddress, json, logging, re, time
+from datetime import datetime, timedelta
+from pathlib import Path
+from dataclasses import dataclass
+from contextlib import contextmanager
+from fastapi import FastAPI, Request, Response, HTTPException
+from guard import *
+
+app = FastAPI()
+config = SecurityConfig(
+    ipinfo_token="test-token",
+    behavior_scan_response_body=True,
+    enable_redis=True,
+    redis_url="redis://localhost:6379",
+)
+security_config = config
+guard_deco = SecurityDecorator(config)
+redis_handler = RedisManager(config)
+sus_patterns_handler.configure(config)
+
+
+async def _teardown():
+    for _manager in (ip_ban_manager, security_headers_manager, cloud_handler):
+        _manager.redis_handler = None
+    for _manager in (ip_ban_manager, security_headers_manager, cloud_handler):
+        _manager.redis_handler = None
+    await ip_ban_manager.reset()
+    await security_headers_manager.reset()
+    await sus_patterns_handler.reset()
+"""
+PRELUDE_PREFIXES = ("",)
 
 
 def _markdown_files() -> list[Path]:
@@ -522,11 +555,12 @@ def test_the_shipped_markdown_is_found() -> None:
     assert sum(len(_python_blocks(path)) for path in MARKDOWN_FILES) > 100
 
 
+@pytest.mark.usefixtures("sandbox")
 @pytest.mark.parametrize(
     "path", MARKDOWN_FILES, ids=lambda path: path.relative_to(ROOT).as_posix()
 )
 def test_every_python_block_parses_runs_and_matches_the_api(
-    path: Path, sandbox: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    path: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     name = path.relative_to(ROOT).as_posix()
     monkeypatch.chdir(tmp_path)
@@ -546,7 +580,8 @@ def test_every_python_block_parses_runs_and_matches_the_api(
         warnings.simplefilter("error")
         # A relative import in a page fragment has no package to resolve against
         warnings.simplefilter("ignore", ImportWarning)
-        exec(compile(PRELUDE, "prelude", "exec"), namespace)
+        prelude = PRELUDE if name.startswith(PRELUDE_PREFIXES) else ALT_PRELUDE
+        exec(compile(prelude, "prelude", "exec"), namespace)
         for line, body in blocks:
             label = f"{name}:{line}"
             try:
