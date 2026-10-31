@@ -347,14 +347,14 @@ All models support standard Pydantic serialization:
 ```python
 # Export configuration
 config_dict = config.model_dump(exclude_unset=True)
-config_json = config.model_dump_json(indent=2, exclude_unset=True)
+config_json = config.model_dump_json(indent=2)
 
 # Import configuration
 config = SecurityConfig.model_validate(config_dict)
 config = SecurityConfig.model_validate_json(config_json)
 
 # Schema generation
-fields = SecurityConfig.model_fields
+schema = SecurityConfig.model_json_schema()
 ```
 
 ___
