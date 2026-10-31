@@ -46,7 +46,7 @@ app.add_middleware(SecurityMiddleware, config=config)
 
 
 @app.post("/api/login")
-@guard.rate_limit(max_requests=5, window_seconds=60)
+@guard.rate_limit(requests=5, window=60)
 async def login():
     return {"ok": True}
 ```

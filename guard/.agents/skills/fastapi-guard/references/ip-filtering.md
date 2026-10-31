@@ -32,11 +32,15 @@ config = SecurityConfig(
 ## Country rules
 
 ```python
+from guard import IPInfoManager
+
 config = SecurityConfig(
-    whitelist_countries={"US", "CA"},
     blocked_countries={"CN", "RU"},
+    geo_ip_handler=IPInfoManager("your_token_here"),
 )
 ```
+
+Use `whitelist_countries={"US", "CA"}` instead to let only the listed countries through; when both are set, `blocked_countries` is ignored and a warning says so.
 
 Country rules require a geo IP handler. Set `geo_ip_handler` when `whitelist_countries` or `blocked_countries` is configured, either to a custom `GeoIPHandler` implementation or to `IPInfoManager(token=...)` directly. The `ipinfo_token` and `ipinfo_db_path` config fields are deprecated (they exist only so `geo_ip_handler` can be auto-constructed as an `IPInfoManager` when omitted); pass `geo_ip_handler=IPInfoManager(...)` explicitly instead of those two fields.
 

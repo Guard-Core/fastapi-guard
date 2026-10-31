@@ -80,7 +80,7 @@ Compose rules at the endpoint level with `SecurityDecorator`:
 
 ```python
 from fastapi import FastAPI
-from guard import SecurityConfig, SecurityDecorator
+from guard import SecurityConfig, SecurityDecorator, SecurityMiddleware
 
 config = SecurityConfig(
     auth_verifier=lambda request, credential: {"user": "demo"} if credential else None,
@@ -92,7 +92,7 @@ app.add_middleware(SecurityMiddleware, config=config)
 
 
 @app.get("/api/payments")
-@guard.rate_limit(max_requests=10, window_seconds=60)
+@guard.rate_limit(requests=10, window=60)
 @guard.require_auth(type="bearer")
 async def list_payments():
     return []
@@ -148,11 +148,17 @@ Note: this also turns requests to paths the app does not serve into 500s instead
 `global_behavior_rules` apply to every route in addition to any decorator-specified rules. Useful for global 404 watchers or request-volume thresholds:
 
 ```python
-from guard import BehaviorRule, SecurityConfig
+from guard import SecurityConfig
 
 config = SecurityConfig(
     global_behavior_rules=[
-        BehaviorRule(action="log", reason="global_404_watch"),
+        {
+            "rule_type": "return_pattern",
+            "threshold": 20,
+            "pattern": "status:404",
+            "window": 300,
+            "action": "log",
+        },
     ],
 )
 ```
@@ -166,7 +172,9 @@ See [the route resolution reference](references/route-resolution.md) for rule sh
 ```python
 config = SecurityConfig(
     passive_mode=True,
-    global_behavior_rules=[BehaviorRule(action="log", reason="shadow")],
+    global_behavior_rules=[
+        {"rule_type": "frequency", "threshold": 60, "window": 300, "action": "log"}
+    ],
 )
 ```
 

@@ -13,6 +13,8 @@ ___
 Unreleased
 ----------
 
+- **Fixed** - **The packaged agent skill files show code that runs.** The skill file and its references called `@guard.rate_limit(max_requests=..., window_seconds=...)` (the arguments are `requests` and `window`), built `BehaviorRule(action=..., reason=...)` (the class has no `reason`, and `global_behavior_rules` takes plain mappings), set `whitelist_countries` and `blocked_countries` together (the second is ignored) and set country rules with no `geo_ip_handler` (the config refuses to build). Each example now runs, and the behavior rule reference lists the real fields. A new test runs every Python block of the packaged skill files, so a wrong API fails the suite.
+
 - **Fixed** - **`make_lifespan` passes through the state the wrapped lifespan yields.** `async with existing_lifespan(app) as state: yield state`, so Starlette lifespan state reaches `request.state`. A lifespan that yields nothing still works.
 
 - **Fixed** - **`guard_lifespan` and `make_lifespan` release the app's Redis hold on exit.** The engine closes the shared connection when the last app on that Redis URL releases it, never while another app still holds it.

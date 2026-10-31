@@ -33,19 +33,28 @@ Trade-off: with `True`, requests to paths the app does not serve turn into 500s 
 `global_behavior_rules` (`list[BehaviorRuleConfig]`, default `[]`) applies behavior rules to every route, in addition to any decorator-specified rules. Useful for global 404 watchers and request-volume thresholds.
 
 ```python
-from guard import BehaviorRule, SecurityConfig
+from guard import SecurityConfig
 
 config = SecurityConfig(
     global_behavior_rules=[
-        BehaviorRule(action="log", reason="global_404_watch"),
+        {
+            "rule_type": "return_pattern",
+            "threshold": 20,
+            "pattern": "status:404",
+            "window": 300,
+            "action": "log",
+        },
     ],
 )
 ```
 
-`BehaviorRule` fields:
+Each rule is a mapping (or a `BehaviorRuleConfig`) with these fields:
 
-* `action` — what to do when the rule fires (`log`, `block`, etc.).
-* `reason` — short label attached to the event/log entry, used for filtering in the dashboard.
+* `rule_type`: `usage`, `return_pattern` or `frequency`.
+* `threshold`: how many hits inside `window` seconds fire the rule.
+* `window`: seconds the hits are counted over (default `3600`).
+* `pattern`: what a `return_pattern` rule matches (`status:404`, `json:...`, `regex:...`).
+* `action`: what to do when the rule fires (`ban`, `log`, `throttle` or `alert`).
 
 Rules from decorators are merged with `global_behavior_rules` at request time; global rules do not override decorator rules, they run alongside them.
 
