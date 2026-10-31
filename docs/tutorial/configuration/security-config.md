@@ -37,7 +37,7 @@ Core Security Settings
 | `route_resolution_strict` | bool | False | Block with 500 when the middleware could not resolve the request's route, instead of running the pipeline with no per-route config. Also turns unserved paths into 500s rather than 404s. Requires guard-core >= 3.7.0 |
 | `auto_ban_threshold` | int | 10 | Number of suspicious requests before auto-ban |
 | `auto_ban_duration` | int | 3600 | Auto-ban duration in seconds |
-| `rate_limit` | int | 10 | Maximum requests per `rate_limit_window` |
+| `rate_limit` | int | 120 | Maximum requests per `rate_limit_window` |
 | `rate_limit_window` | int | 60 | Rate limiting time window (seconds) |
 | `enforce_https` | bool | False | Whether to enforce HTTPS connections |
 | `exclude_paths` | list[str] | `["/docs", "/redoc", "/openapi.json", "/openapi.yaml", "/favicon.ico", "/static"]` | Paths exempted from detection and behavioral tracking; IP bans, blacklists, blocked countries, blocked cloud providers, and rate limits still apply. Matched against the route-relative path (any ASGI `root_path` mount prefix stripped), the same path `endpoint_rate_limits` keys match against |
@@ -86,7 +86,7 @@ Redis Settings
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `enable_redis` | bool | True | Enable/disable Redis for distributed state management |
+| `enable_redis` | bool | False | Enable/disable Redis for distributed state management. Left unset, Redis is on exactly when a Redis connection field (`redis_url`, `redis_prefix` and the other `redis_*` settings) is set explicitly; an explicit `enable_redis` always wins |
 | `redis_url` | str \| None | "redis://localhost:6379" | Redis URL for distributed state management |
 | `redis_prefix` | str | "guard_core:" | Prefix for Redis keys to avoid collisions with other apps |
 | `lazy_init` | bool | True | When Redis is enabled, defers cloud-IP/geo-IP warmup to a background task instead of blocking `initialize()`; has no effect without Redis. Whether `initialize()` itself runs at ASGI startup or on the first request is a separate concern controlled by lifespan wiring - see [Eager Initialization](../first-steps.md#eager-initialization-with-fastapi-lifespan) and [Initialization Status](#initialization-status) below |
@@ -180,9 +180,9 @@ The following additional security headers are now included by default:
 
 - `X-Permitted-Cross-Domain-Policies: none`
 - `X-Download-Options: noopen`
-- `Cross-Origin-Embedder-Policy: require-corp`
+- `Cross-Origin-Embedder-Policy` is not sent unless you set `cross_origin_embedder_policy`
 - `Cross-Origin-Opener-Policy: same-origin`
-- `Cross-Origin-Resource-Policy: same-origin`
+- `Cross-Origin-Resource-Policy: same-site`
 
 Security Headers Sub-fields
 ----------------------------
@@ -347,14 +347,14 @@ All models support standard Pydantic serialization:
 ```python
 # Export configuration
 config_dict = config.model_dump(exclude_unset=True)
-config_json = config.model_dump_json(indent=2)
+config_json = config.model_dump_json(indent=2, exclude_unset=True)
 
 # Import configuration
 config = SecurityConfig.model_validate(config_dict)
 config = SecurityConfig.model_validate_json(config_json)
 
 # Schema generation
-schema = SecurityConfig.model_json_schema()
+fields = SecurityConfig.model_fields
 ```
 
 ___

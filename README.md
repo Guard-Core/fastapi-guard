@@ -201,7 +201,9 @@ Free tier includes 10,000 events/month --- no credit card required.
 When `enable_agent=True`, the middleware exposes an `agent_stats` property that returns the current buffer drop counters and transport circuit-breaker state without needing to reach into the agent directly:
 
 ```python
-middleware: SecurityMiddleware = ...
+from guard import SecurityMiddleware
+
+middleware = SecurityMiddleware(app, config=config)
 
 stats = middleware.agent_stats
 # {"enabled": True, "buffer_stats": {"events_dropped": 0, "metrics_dropped": 0, ...},

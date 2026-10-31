@@ -41,8 +41,8 @@ app = FastAPI()
 config = SecurityConfig(
     rate_limit=100,  # Max 100 requests
     rate_limit_window=60,  # Per minute
-    enable_rate_limiting=True,  # Enable rate limiting (true by default)
-    enable_redis=True,  # Use Redis for distributed setup (true by default)
+    enable_rate_limiting=True,  # Enable rate limiting (True by default)
+    enable_redis=True,  # Use Redis for distributed setup (off unless a Redis field is set)
     redis_url="redis://localhost:6379/0",
 )
 

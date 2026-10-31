@@ -10,11 +10,11 @@ flowchart TD
 
     Middleware --> DPA[detect_penetration_attempt<br/>• Extracts content from request<br/>• Query, body, path, headers<br/>• Calls SusPatternsManager.detect]
 
-    DPA --> SPM[SusPatternsManager Singleton<br/>• Manages patterns: default + custom<br/>• Initializes components lazily<br/>• Orchestrates detection process]
+    DPA --> SPM[SusPatternsManager Singleton<br/>• Manages patterns: default + custom<br/>• Builds the components when configured<br/>• Orchestrates detection process]
 
-    SPM --> CP[ContentPreprocessor<br/>if configured]
-    SPM --> PC[PatternCompiler<br/>if configured]
-    SPM --> SA[SemanticAnalyzer<br/>if configured]
+    SPM --> CP[ContentPreprocessor]
+    SPM --> PC[PatternCompiler]
+    SPM --> SA[SemanticAnalyzer]
 
     CP --> PM[PerformanceMonitor<br/>always created]
     PC --> PM
@@ -43,13 +43,15 @@ class SusPatternsManager:
     def __new__(cls) -> SusPatternsManager:
         # Singleton implementation
 
+        ...
+
     def __init__(self) -> None:
         # Load patterns from YAML files
         self.patterns: list[str] = []
         self.custom_patterns: set[str] = set()
         self.compiled_patterns: list[re.Pattern] = []
 
-        # Detection engine components (initialized lazily)
+        # Detection engine components (built when the manager is configured)
         self._compiler: PatternCompiler | None = None
         self._preprocessor: ContentPreprocessor | None = None
         self._semantic_analyzer: SemanticAnalyzer | None = None
@@ -58,190 +60,148 @@ class SusPatternsManager:
 
 **Key Responsibilities:**
 
-- Pattern loading from YAML files
+- Pattern loading from the built-in pattern table
 - Custom pattern management
-- Component initialization based on configuration
+- Component initialization from the configuration
 - Detection orchestration
 - Result aggregation
 
 ### 2. Component Initialization
 
-Components are initialized only when needed based on configuration:
+The components are built together when the pattern manager is configured with a `SecurityConfig`:
 
 ```python
-def _ensure_detection_components(self) -> None:
-    """Initialize detection engine components based on configuration."""
-    config = get_current_config()
-
-    # PatternCompiler: Only if timeout > 0
-    if config.detection_compiler_timeout > 0 and not self._compiler:
-        self._compiler = PatternCompiler(config)
-
-    # ContentPreprocessor: Only if max_content_length > 0
-    if config.detection_max_content_length > 0 and not self._preprocessor:
-        self._preprocessor = ContentPreprocessor(config)
-
-    # SemanticAnalyzer: Only if threshold > 0
-    if config.detection_semantic_threshold > 0 and not self._semantic_analyzer:
-        self._semantic_analyzer = SemanticAnalyzer(config)
-
-    # PerformanceMonitor: Always created
-    if not self._performance_monitor:
-        self._performance_monitor = PerformanceMonitor(config)
+def _build_enhanced_detection_state(config, redaction_names=None):
+    return _DetectionState(
+        compiler=PatternCompiler(
+            default_timeout=config.detection_compiler_timeout,
+            max_cache_size=config.detection_max_tracked_patterns,
+            # ...
+        ),
+        preprocessor=ContentPreprocessor(
+            max_content_length=config.detection_max_content_length,
+            preserve_attack_patterns=config.detection_preserve_attack_patterns,
+            # ...
+        ),
+        semantic_analyzer=SemanticAnalyzer(),
+        performance_monitor=PerformanceMonitor(
+            anomaly_threshold=config.detection_anomaly_threshold,
+            slow_pattern_threshold=config.detection_slow_pattern_threshold,
+            history_size=config.detection_monitor_history_size,
+            max_tracked_patterns=config.detection_max_tracked_patterns,
+            # ...
+        ),
+        semantic_threshold=config.detection_semantic_threshold,
+        threat_score_threshold=config.detection_threat_score_threshold,
+    )
 ```
+
+This function lives in `guard_core.handlers._suspatterns_state`. All four components are always created.
 
 ## Detection Flow
 
 ### 1. Request Reception
 
 ```python
-# In middleware.py
+# In SuspiciousActivityCheck (guard_core.core.checks.implementations.suspicious_activity)
 if self.config.enable_penetration_detection:
-    result = await detect_penetration_attempt(
-        request,
-        config=self.config,
-        route_config=route_config,
-    )
+    result = detect_penetration_attempt(request, self.config, route_config)
     if result.is_threat:
-        # result.trigger_info, result.threat_categories, result.threat_scores
-        # are all available for richer logging, metrics, or response shaping
+        # Handle detected attack
+        # result.trigger_info       -> human-readable trigger
+        # result.threat_categories  -> e.g. ["sqli", "xss"]
+        # result.threat_scores      -> {"sqli": 0.92, ...}
+
         ...
 ```
 
 ### 2. Content Extraction
 
 ```python
-# In utils.py
-async def detect_penetration_attempt(
-    request: Request,
+# In guard_core._utils.penetration_detection
+def detect_penetration_attempt(
+    request: GuardRequest,
     config: SecurityConfig | None = None,
     route_config: RouteConfig | None = None,
 ) -> DetectionResult:
-    # Extract content from various sources
-    contents_to_check = []
-
-    # Query parameters
-    if request.query_params:
-        for key, value in request.query_params.items():
-            contents_to_check.append((f"{key}={value}", "query_param"))
-
-    # Request body
-    body = await get_body_content(request)
-    if body:
-        contents_to_check.append((body, "body"))
-
-    # Path parameters
-    if path_params := request.path_params:
-        contents_to_check.append((str(path_params), "path"))
-
-    # Headers
-    for header, value in request.headers.items():
-        contents_to_check.append((f"{header}: {value}", "header"))
+    # Extract content from the request: query parameters, the request body
+    # (JSON values are walked key by key), the path and the headers, each
+    # tagged with its context ("query_param:<name>", "body", "path", "header:<name>"),
+    # honouring excluded_detection_params, excluded_detection_headers,
+    # excluded_detection_body_fields and the scan budgets
+    # (detection_max_scan_values, detection_max_json_depth, detection_max_scan_chars)
+    ...
 ```
 
 ### 3. Detection Process
 
 ```python
-# For each content piece
-for content, context in contents_to_check:
-    result = await sus_patterns_handler.detect(
-        content=content,
-        ip_address=client_ip,
-        context=context,
-        correlation_id=correlation_id,
-    )
+def scan(contents_to_check, patterns_manager, client_ip, correlation_id):
+    # For each content piece
+    for content, context in contents_to_check:
+        result = patterns_manager.detect(
+            content=content,
+            ip_address=client_ip,
+            context=context,
+            correlation_id=correlation_id,
+        )
 
-    if result["is_threat"]:
-        return True, format_trigger_info(result)
+        if result["is_threat"]:
+            return _build_detection_hit(format_trigger_info(result), result["threats"])
 ```
 
 ### 4. Detection Implementation
 
-The actual detection in `SusPatternsManager.detect()`:
+A simplified sketch of `SusPatternsManager.detect()` (the real flow is in `guard_core.handlers._suspatterns_enhanced` and `suspatterns_handler`):
 
 ```python
-async def detect(self, content: str, **kwargs) -> dict[str, Any]:
+def detect(
+    self,
+    content: str,
+    ip_address: str,
+    context: str = "unknown",
+    correlation_id: str | None = None,
+    **options,
+) -> dict:
     start_time = time.time()
     threats = []
     timeouts = []
 
-    # 1. Ensure components are initialized
-    self._ensure_detection_components()
+    # 1. Preprocess content: normalize, decode, truncate
+    processed_content, decode_budget_exhausted, decoded = self._preprocess_content(
+        content, correlation_id
+    )
 
-    # 2. Preprocess content
-    if self._preprocessor:
-        processed_content = self._preprocessor.preprocess(content)
-        preserved_attacks = processed_content != content[: len(processed_content)]
-    else:
-        processed_content = content
-        preserved_attacks = False
+    # 2. Pattern matching: each pattern runs through the PatternCompiler's
+    #    timeout-protected matchers
+    #    -> threats.append({"type": "regex", "pattern": ..., "match": ...,
+    #                       "position": ..., "execution_time": ...,
+    #                       "category": ..., "weight": ...})
+    #    -> a pattern that exceeds its time budget is added to `timeouts`
 
-    # 3. Pattern matching
-    for i, pattern in enumerate(self.compiled_patterns):
-        pattern_str = (
-            self.patterns[i] if i < len(self.patterns) else str(pattern.pattern)
-        )
+    # 3. Semantic analysis (skipped for binary content)
+    semantic_threats, semantic_score = self._check_semantic_threats(processed_content)
+    #    -> {"type": "semantic", "attack_type": ..., "probability": ...,
+    #        "analysis": ...}, added when the score is above
+    #       detection_semantic_threshold
+    threats.extend(semantic_threats)
 
-        if self._compiler:
-            # Use timeout-protected matching
-            safe_matcher = self._compiler.create_safe_matcher(pattern_str, pattern)
-            match_result = await safe_matcher(processed_content)
+    # 4. Performance tracking: every executed pattern is recorded with
+    #    performance_monitor.record_metric(pattern, execution_time,
+    #                                      content_length, matched, timeout)
 
-            if match_result:
-                if match_result.get("timeout"):
-                    timeouts.append(pattern_str)
-                elif match_result.get("match"):
-                    threats.append(
-                        {
-                            "type": "regex",
-                            "pattern": pattern_str,
-                            "execution_time": match_result.get("execution_time", 0),
-                        }
-                    )
-        else:
-            # Fallback to direct matching
-            try:
-                if pattern.search(processed_content):
-                    threats.append({"type": "regex", "pattern": pattern_str})
-            except Exception:
-                pass
-
-    # 4. Semantic analysis
-    if self._semantic_analyzer and not threats:
-        semantic_result = self._semantic_analyzer.analyze_content(processed_content)
-        if semantic_result["score"] > self._semantic_analyzer.threshold:
-            threats.append(
-                {
-                    "type": "semantic",
-                    "score": semantic_result["score"],
-                    "attack_types": semantic_result["attack_types"],
-                    "confidence": semantic_result["confidence"],
-                }
-            )
-
-    # 5. Performance tracking
-    execution_time = time.time() - start_time
-    if self._performance_monitor:
-        for threat in threats:
-            await self._performance_monitor.record_metric(
-                pattern=threat.get("pattern", "semantic"),
-                execution_time=threat.get("execution_time", execution_time),
-                matched=True,
-                timeout=False,
-            )
-
-    # 6. Build result
+    # 5. Build result
     return {
         "is_threat": len(threats) > 0,
-        "threat_score": max((t.get("score", 1.0) for t in threats), default=0.0),
+        "threat_score": threat_score,  # 0.0-1.0
         "threats": threats,
-        "context": kwargs.get("context", "unknown"),
+        "context": context,
         "original_length": len(content),
         "processed_length": len(processed_content),
-        "execution_time": execution_time,
-        "detection_method": "enhanced" if self._compiler else "legacy",
+        "execution_time": time.time() - start_time,
+        "detection_method": "enhanced",
         "timeouts": timeouts,
-        "correlation_id": kwargs.get("correlation_id"),
+        "correlation_id": correlation_id,
     }
 ```
 
@@ -251,7 +211,7 @@ async def detect(self, content: str, **kwargs) -> dict[str, Any]:
 
 ```mermaid
 flowchart LR
-    YAML[YAML Files<br/>package data] --> PL[Pattern Loading<br/>• Read YAML files<br/>• Merge custom<br/>• Compile regex]
+    YAML[Pattern table<br/>package source] --> PL[Pattern Loading<br/>• Read the pattern table<br/>• Merge custom<br/>• Compile regex]
     Custom[Custom Patterns<br/>runtime] --> PL
     Cache[Compiled Cache<br/>memory] --> PL
 
@@ -271,15 +231,20 @@ flowchart LR
         {
             "type": "regex",  # or "semantic"
             "pattern": str,  # For regex matches
-            "score": float,  # For semantic matches
-            "execution_time": float,  # Pattern execution time
+            "match": str,  # The matched text (regex)
+            "position": int,  # Offset of the match (regex)
+            "execution_time": float,  # Pattern execution time (regex)
+            "category": str,  # e.g. "sqli", "xss" (regex)
+            "weight": float,  # The pattern's weight (regex)
+            "attack_type": str,  # For semantic matches
+            "probability": float,  # For semantic matches
         }
     ],
     "context": str,  # Where content came from
     "original_length": int,  # Original content length
     "processed_length": int,  # After preprocessing
     "execution_time": float,  # Total detection time
-    "detection_method": str,  # "enhanced" or "legacy"
+    "detection_method": str,  # "enhanced", or "legacy" for an unconfigured manager
     "timeouts": list[str],  # Patterns that timed out
     "correlation_id": str | None,  # Request correlation ID
 }
@@ -383,7 +348,7 @@ stats = await sus_patterns_handler.get_performance_stats()
     "problematic_patterns": [...],  # Patterns with issues
     "summary": {
         "total_executions": 10000,
-        "average_time": 0.002,
+        "avg_execution_time": 0.002,
         "timeout_rate": 0.001,
         "match_rate": 0.05,
     },
@@ -400,8 +365,8 @@ status = await sus_patterns_handler.get_component_status()
 {
     "compiler": True,  # PatternCompiler active
     "preprocessor": True,  # ContentPreprocessor active
-    "semantic_analyzer": False,  # Not configured
-    "performance_monitor": True,  # Always active
+    "semantic_analyzer": True,  # SemanticAnalyzer active
+    "performance_monitor": True,  # PerformanceMonitor active
 }
 ```
 

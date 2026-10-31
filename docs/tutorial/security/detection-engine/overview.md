@@ -7,10 +7,10 @@ The FastAPI Guard Detection Engine is an enhanced pattern-based threat detection
 The Detection Engine is an evolution of FastAPI Guard's suspicious patterns system, introducing:
 
 - **Timeout Protection**: Prevents ReDoS attacks through configurable execution timeouts
-- **Content Preprocessing**: Truncates content while preserving potential attack patterns
-- **Optional Semantic Analysis**: Heuristic-based detection for obfuscated attacks (disabled by default)
+- **Content Preprocessing**: Normalizes, decodes and truncates content while preserving potential attack patterns
+- **Semantic Analysis**: Heuristic-based detection for obfuscated attacks (on by default, threshold 0.7)
 - **Performance Tracking**: Monitors pattern execution times to identify slow patterns
-- **Singleton Architecture**: Centralized pattern management with lazy initialization
+- **Per-App Pattern Management**: A default pattern manager serves the first app and every app on its Redis prefix, any other app gets a manager of its own
 
 ## Key Features
 
@@ -27,19 +27,20 @@ The engine protects against Regular Expression Denial of Service (ReDoS) by:
 
 The `ContentPreprocessor` component:
 
+- Normalizes Unicode, decodes common encodings, drops null and control characters and collapses whitespace
 - Truncates content to `detection_max_content_length` (default: 10,000 characters)
 - Preserves attack patterns when `detection_preserve_attack_patterns` is True
-- Uses a sliding window approach to retain potential threats
-- Returns both processed content and preservation metrics
+- Keeps the regions that `extract_attack_regions()` finds when it truncates
+- Returns the processed content (`preprocess_with_decoded()` also returns the decoded content)
 
-### 3. Optional Semantic Analysis
+### 3. Semantic Analysis
 
-When enabled, provides heuristic-based detection:
+Provides heuristic-based detection:
 
-- Pattern-based heuristics for SQL injection, XSS, path traversal, etc.
-- Configurable threshold via `detection_semantic_threshold` (default: 0.7)
+- Keyword and structure heuristics for the `sql`, `xss`, `command`, `path` and `template` attack families
+- Configurable threshold via `detection_semantic_threshold` (default: 0.7, range 0.0 to 1.0); a finding needs a score above it, so 1.0 produces no semantic finding
 - Returns probability scores and detected attack types
-- Must be explicitly enabled in configuration
+- Skipped for binary content
 
 ### 5. Context-Aware Pattern Filtering
 
@@ -63,11 +64,11 @@ flowchart TB
     Request[FastAPI Request] --> DPA[detect_penetration_attempt]
     DPA --> SPM[SusPatternsManager.detect]
 
-    SPM --> CP[ContentPreprocessor<br/>if configured]
-    SPM --> PC[PatternCompiler<br/>if configured]
-    SPM --> SA[SemanticAnalyzer<br/>if configured]
+    SPM --> CP[ContentPreprocessor]
+    SPM --> PC[PatternCompiler]
+    SPM --> SA[SemanticAnalyzer]
 
-    CP --> PM[PerformanceMonitor<br/>if configured]
+    CP --> PM[PerformanceMonitor]
     PC --> PM
     SA --> PM
 
@@ -96,8 +97,7 @@ config = SecurityConfig(
     # Content preprocessing
     detection_max_content_length=10000,
     detection_preserve_attack_patterns=True,
-    # Optional: Enable semantic analysis
-    # Note: Requires explicit configuration
+    # Semantic analysis threshold (a finding needs a score above it)
     detection_semantic_threshold=0.7,
     # Performance monitoring
     detection_slow_pattern_threshold=0.1,
@@ -123,24 +123,27 @@ When a request arrives, `detect_penetration_attempt()` extracts content from:
 For each content piece, the engine:
 
 ```python
-# 1. Preprocessing (if max_content_length is configured)
-if len(content) > config.detection_max_content_length:
-    content = preprocessor.preprocess(content)
+# 1. Preprocessing: normalize, decode, drop null bytes, collapse whitespace, then
+#    truncate to detection_max_content_length
+processed = await preprocessor.preprocess(content)
 
-# 2. Pattern matching with timeout protection
+# 2. Pattern matching with timeout protection: each pattern runs through the
+#    PatternCompiler's matchers (detection_compiler_timeout)
 for pattern in patterns:
-    with timeout(config.detection_compiler_timeout):
-        if pattern.search(content):
-            # Attack detected
+    match = compiler.create_safe_matcher(pattern)(processed)
+    if match:
+        ...  # Attack detected
 
-# 3. Semantic analysis (if threshold is configured)
-if config.detection_semantic_threshold > 0:
-    result = semantic_analyzer.analyze_content(content)
-    if result['score'] > config.detection_semantic_threshold:
-        # Attack detected
+# 3. Semantic analysis (skipped for binary content)
+analysis = semantic_analyzer.analyze(processed)
+score = semantic_analyzer.get_threat_score(analysis)
+if score > config.detection_semantic_threshold:
+    ...  # Attack detected
 
 # 4. Performance tracking (always enabled)
-performance_monitor.record_metric(...)
+await performance_monitor.record_metric(
+    pattern, execution_time, content_length, matched
+)
 ```
 
 ### 3. Results
@@ -151,7 +154,17 @@ The engine returns detailed information about detected threats:
 {
     "is_threat": True,
     "threat_score": 0.85,
-    "threats": [{"type": "regex", "pattern": "union.*select", "execution_time": 0.002}],
+    "threats": [
+        {
+            "type": "regex",
+            "pattern": "union.*select",
+            "match": "UNION SELECT",
+            "position": 12,
+            "execution_time": 0.002,
+            "category": "sqli",
+            "weight": 1.0,
+        }
+    ],
     "context": "body:json",
     "original_length": 500,
     "processed_length": 500,
@@ -172,7 +185,7 @@ The engine returns detailed information about detected threats:
 | `detection_compiler_timeout` | float | `2.0` | Maximum seconds for pattern execution |
 | `detection_max_content_length` | int | `10000` | Maximum characters to analyze |
 | `detection_preserve_attack_patterns` | bool | `True` | Preserve potential attacks during truncation |
-| `detection_semantic_threshold` | float | `0.7` | Threshold for semantic detection (0=disabled) |
+| `detection_semantic_threshold` | float | `0.7` | Score the semantic analyzer must exceed for a finding (0.0-1.0, 1.0 gives no finding) |
 | `detection_anomaly_threshold` | float | `3.0` | Standard deviations for performance anomaly |
 | `detection_slow_pattern_threshold` | float | `0.1` | Seconds to consider pattern slow |
 | `detection_monitor_history_size` | int | `1000` | Number of metrics to keep |
@@ -180,11 +193,11 @@ The engine returns detailed information about detected threats:
 
 ## Component Initialization
 
-Components are initialized only when needed:
+The components are built together when the pattern manager is configured with the `SecurityConfig`:
 
-- **PatternCompiler**: Created if `detection_compiler_timeout` > 0
-- **ContentPreprocessor**: Created if `detection_max_content_length` > 0
-- **SemanticAnalyzer**: Created if `detection_semantic_threshold` > 0
+- **PatternCompiler**: Built from `detection_compiler_timeout` and `detection_max_tracked_patterns`
+- **ContentPreprocessor**: Built from `detection_max_content_length` and `detection_preserve_attack_patterns`
+- **SemanticAnalyzer**: Always created, scored against `detection_semantic_threshold`
 - **PerformanceMonitor**: Always created for tracking
 
 ## Pattern Management
@@ -193,7 +206,7 @@ Components are initialized only when needed:
 
 The engine loads patterns from:
 
-1. Built-in YAML files in the package
+1. The built-in pattern table in the package
 2. Custom patterns added via API
 
 ### Adding Custom Patterns
@@ -206,13 +219,14 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 patterns = sus_patterns_manager_for(security_config)
 
 # Add a pattern
-await patterns.add_pattern(r"(?i)malicious.*pattern", custom=True)
+await patterns.add_pattern(r"(?i)malicious_pattern", custom=True)
 
 # Remove a pattern
-await patterns.remove_pattern(r"(?i)malicious.*pattern", custom=True)
+await patterns.remove_pattern(r"(?i)malicious_pattern", custom=True)
 
 # Clear all custom patterns
-await patterns.clear_custom_patterns()
+for pattern in await patterns.get_custom_patterns():
+    await patterns.remove_pattern(pattern, custom=True)
 ```
 
 ## Performance Considerations
@@ -241,7 +255,7 @@ except asyncio.TimeoutError:
 
 - Timeout protection prevents CPU-intensive patterns from blocking
 - Slow patterns are identified and can be optimized or removed
-- Semantic analysis adds overhead only when explicitly enabled
+- Semantic analysis is bounded by `detection_max_content_length`
 
 ## Integration Points
 

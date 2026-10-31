@@ -58,4 +58,4 @@ Blocks requests originating from the listed cloud-provider IP ranges. Cloud-prov
 
 ## Redis-backed state
 
-`enable_redis=True` (default) uses Redis for distributed ban state and rate-limit counters so limits hold across multiple workers. `redis_url`, `redis_prefix`, `redis_socket_connect_timeout`, `redis_socket_timeout`, `redis_health_check_interval`, `redis_max_connections`, and `redis_retries` tune the pool. Keep the socket timeouts low — every blocked Redis call blocks a request.
+Redis (`enable_redis=True`, or any Redis connection field such as `redis_url` set explicitly; off otherwise since guard-core 5.0.0) holds distributed ban state and rate-limit counters so limits hold across multiple workers. `redis_url`, `redis_prefix`, `redis_socket_connect_timeout`, `redis_socket_timeout`, `redis_health_check_interval`, `redis_max_connections`, and `redis_retries` tune the pool. Keep the socket timeouts low, because every blocked Redis call blocks a request.

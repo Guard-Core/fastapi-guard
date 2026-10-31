@@ -71,7 +71,7 @@ config = SecurityConfig(
     geo_ip_handler=IPInfoManager(
         "your_ipinfo_token_here"
     ),  # NOTE: Required when using country blocking
-    enable_redis=True,  # Enabled by default, disable to use in-memory storage
+    enable_redis=True,  # Off unless a Redis field is set, enable to use Redis (without it state is in-memory)
     redis_url="redis://localhost:6379/0",
     redis_prefix="prod:security:",
     whitelist=["192.168.1.1", "2001:db8::1"],

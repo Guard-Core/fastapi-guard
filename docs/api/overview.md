@@ -113,14 +113,14 @@ The `SecurityConfig` class is the central configuration point. It is a Pydantic 
 ```python
 class SecurityConfig(BaseModel):
     geo_ip_handler: GeoIPHandler | None = None
-    whitelist: list[str] | None = None
-    blacklist: list[str] = []
+    whitelist: tuple[str, ...] | None = None
+    blacklist: tuple[str, ...] = ()
     blocked_countries: frozenset[str] = frozenset()
     whitelist_countries: frozenset[str] = frozenset()
     blocked_user_agents: list[str] = []
     auto_ban_threshold: int = 10
     auto_ban_duration: int = 3600
-    rate_limit: int = 10
+    rate_limit: int = 120
     rate_limit_window: int = 60
     enable_cors: bool = False
     # ... other fields
@@ -172,7 +172,10 @@ The main decorator class combines all security capabilities:
 ```python
 from guard import SecurityDecorator
 
-config = SecurityConfig()
+config = SecurityConfig(
+    # geo source for block_countries, allow_countries and geo_rate_limit
+    ipinfo_token="your_ipinfo_token_here",
+)
 guard_deco = SecurityDecorator(config)
 
 

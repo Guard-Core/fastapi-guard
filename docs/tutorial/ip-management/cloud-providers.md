@@ -76,7 +76,7 @@ from guard_core.handlers.cloud_handler import cloud_handler_for
 # you act on with the config that app was built with.
 clouds = cloud_handler_for(security_config)
 
-clouds.refresh()
+await clouds.refresh()
 ```
 
 ___

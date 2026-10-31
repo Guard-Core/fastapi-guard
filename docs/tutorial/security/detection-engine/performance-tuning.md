@@ -29,7 +29,7 @@ patterns = sus_patterns_manager_for(security_config)
 stats = await patterns.get_performance_stats()
 
 # Key metrics to monitor
-print(f"Average execution time: {stats['summary']['average_time']}s")
+print(f"Average execution time: {stats['summary']['avg_execution_time']}s")
 print(f"Timeout rate: {stats['summary']['timeout_rate'] * 100}%")
 print(f"Match rate: {stats['summary']['match_rate'] * 100}%")
 print(f"Slow patterns: {len(stats['slow_patterns'])}")
@@ -55,11 +55,11 @@ Target performance levels for different scenarios:
 
 ```python
 # Get patterns exceeding threshold
-slow_patterns = monitor.get_slow_patterns(threshold=0.05)
+slow_patterns = (await patterns.get_performance_stats())["slow_patterns"]
 
 for pattern_info in slow_patterns:
     pattern = pattern_info["pattern"]
-    avg_time = pattern_info["average_time"]
+    avg_time = pattern_info["avg_execution_time"]
 
     if avg_time > 0.1:
         # Consider removing or optimizing
@@ -170,22 +170,18 @@ config = SecurityConfig(
 ```python
 # Optimize Redis settings
 config = SecurityConfig(
-    use_redis=True,
-    redis_pool_size=20,  # Increase pool for high traffic
-    redis_ttl=3600,  # Shorter TTL for dynamic patterns
+    enable_redis=True,
+    redis_max_connections=20,  # Increase pool for high traffic
+    redis_socket_timeout=2.0,  # Keep a slow Redis call from stalling requests
 )
 ```
 
 #### Pattern Compilation Cache
 
 ```python
-# Monitor cache effectiveness
-compiler = patterns._compiler
-cache_stats = compiler.get_cache_stats()
-
-if cache_stats["hit_rate"] < 0.8:
-    # Increase cache size
-    compiler.max_cache_size = 2000
+# The compiled-pattern cache holds detection_max_tracked_patterns entries
+# (at most 5000), so raise that setting to keep more patterns cached
+config = SecurityConfig(detection_max_tracked_patterns=2000)
 ```
 
 ### 5. Timeout Configuration
@@ -244,14 +240,14 @@ async def monitor_performance():
         stats = await patterns.get_performance_stats()
 
         # Alert on performance degradation
-        if stats["summary"]["average_time"] > 0.05:
+        if stats["summary"]["avg_execution_time"] > 0.05:
             logger.warning(
                 f"Performance degradation detected: "
-                f"{stats['summary']['average_time']}s average"
+                f"{stats['summary']['avg_execution_time']}s average"
             )
 
         # Check for anomalies
-        anomalies = monitor.get_anomalies()
+        anomalies = stats["problematic_patterns"]
         if anomalies:
             logger.error(f"Pattern anomalies detected: {len(anomalies)}")
 
@@ -268,13 +264,13 @@ async def get_detection_metrics():
 
     return {
         "performance": {
-            "average_execution_ms": stats["summary"]["average_time"] * 1000,
-            "p95_execution_ms": stats["summary"].get("p95_time", 0) * 1000,
+            "average_execution_ms": stats["summary"]["avg_execution_time"] * 1000,
+            "max_execution_ms": stats["summary"]["max_execution_time"] * 1000,
             "timeout_rate": stats["summary"]["timeout_rate"],
             "total_executions": stats["summary"]["total_executions"],
         },
         "patterns": {
-            "total": len(stats["all_patterns"]),
+            "total": stats["summary"]["total_patterns"],
             "slow": len(stats["slow_patterns"]),
             "problematic": len(stats["problematic_patterns"]),
         },
@@ -288,14 +284,14 @@ async def get_detection_metrics():
 
 ```python
 # 1. Check for runaway patterns
-problematic = monitor.get_problematic_patterns()
+problematic = (await patterns.get_performance_stats())["problematic_patterns"]
 for pattern in problematic:
     if pattern["timeout_rate"] > 0.05:
         # Remove or fix pattern
         await patterns.remove_pattern(pattern["pattern"], custom=True)
 
-# 2. Reduce concurrent execution
-config.detection_max_concurrent = 10  # Limit parallel checks
+# 2. Bound the work done per request
+config.detection_max_scan_values = 256  # Scan fewer values per request
 
 
 # 3. Implement circuit breaker
@@ -320,8 +316,8 @@ config = SecurityConfig(
 # 2. Clear old data periodically
 async def cleanup_task():
     while True:
-        monitor.clear_old_metrics()
-        compiler.clear_unused_cache()
+        await patterns._performance_monitor.clear_stats()
+        await patterns._compiler.clear_cache()
         await asyncio.sleep(3600)  # Every hour
 
 

@@ -41,13 +41,13 @@ You can add patterns for different types of attacks:
 
 ```python
 # Custom XSS pattern
-await patterns.add_pattern(r"<script\s*src=.*>", custom=True)
+await patterns.add_pattern(r"<script\s+src=[^>]*>", custom=True)
 
 # Custom SQL injection pattern
 await patterns.add_pattern(r";\s*DROP\s+TABLE", custom=True)
 
 # Custom file path pattern
-await patterns.add_pattern(r"\.\.\/.*\/etc\/passwd", custom=True)
+await patterns.add_pattern(r"\.\./[^/]{1,64}/etc/passwd", custom=True)
 ```
 
 ___

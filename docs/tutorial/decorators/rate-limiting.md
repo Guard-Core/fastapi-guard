@@ -21,8 +21,12 @@ Apply custom rate limits to specific routes:
 ----------------------------
 
 ```python
-from guard import SecurityDecorator
+from guard import SecurityConfig, SecurityDecorator
 
+# geo source for block_countries, allow_countries and geo_rate_limit
+config = SecurityConfig(
+    ipinfo_token="your_ipinfo_token_here",
+)
 guard_deco = SecurityDecorator(config)
 
 

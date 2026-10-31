@@ -159,7 +159,7 @@ guard_deco = SecurityDecorator(config)  # config still has passive_mode=True
 
 
 @app.get("/admin")
-@guard_deco.ip.whitelist(["10.0.0.0/8"])
+@guard_deco.require_ip(whitelist=["10.0.0.0/8"])
 async def admin() -> dict[str, str]:
     return {"status": "ok"}
 ```

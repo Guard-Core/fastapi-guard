@@ -12,7 +12,7 @@ config = SecurityConfig(
 )
 ```
 
-`rate_limit` is the maximum requests per client per `rate_limit_window` (seconds). Defaults: 10 requests per 60 seconds.
+`rate_limit` is the maximum requests per client per `rate_limit_window` (seconds). Defaults: 120 requests per 60 seconds.
 
 ## Per-endpoint overrides
 
@@ -53,7 +53,7 @@ async def login():
 
 ## Redis
 
-With `enable_redis=True` (default), counters live in Redis so limits are shared across workers. Without Redis, limits are per-process and a multi-worker deployment effectively multiplies the configured limit by the worker count. Prefer Redis in production.
+With Redis on (`enable_redis=True`, or a Redis connection field such as `redis_url` set; off otherwise since guard-core 5.0.0), counters live in Redis so limits are shared across workers. Without Redis, limits are per-process and a multi-worker deployment effectively multiplies the configured limit by the worker count. Prefer Redis in production.
 
 ## When to use which
 

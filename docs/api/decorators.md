@@ -42,7 +42,11 @@ from guard import SecurityConfig
 from guard import SecurityDecorator
 
 app = FastAPI()
-config = SecurityConfig()
+config = SecurityConfig(
+    # geo source for block_countries, allow_countries and geo_rate_limit; response body scanning for return_monitor
+    ipinfo_token="your_ipinfo_token_here",
+    behavior_scan_response_body=True,
+)
 guard_deco = SecurityDecorator(config)
 
 
@@ -203,6 +207,9 @@ config = SecurityConfig(
     enable_rate_limiting=True,
     rate_limit=100,
     rate_limit_window=3600,
+    # geo source for block_countries, allow_countries and geo_rate_limit; response body scanning for return_monitor
+    ipinfo_token="your_ipinfo_token_here",
+    behavior_scan_response_body=True,
 )
 
 # Create decorator instance

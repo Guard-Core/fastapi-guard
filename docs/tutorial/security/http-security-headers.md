@@ -52,9 +52,9 @@ This automatically adds:
 - `Permissions-Policy: geolocation=(), microphone=(), camera=()`
 - `X-Permitted-Cross-Domain-Policies: none`
 - `X-Download-Options: noopen`
-- `Cross-Origin-Embedder-Policy: require-corp`
+- `Cross-Origin-Embedder-Policy` is not sent unless you set `cross_origin_embedder_policy`
 - `Cross-Origin-Opener-Policy: same-origin`
-- `Cross-Origin-Resource-Policy: same-origin`
+- `Cross-Origin-Resource-Policy: same-site`
 
 Advanced Configuration
 ----------------------

@@ -56,8 +56,12 @@ Monitor how frequently individual IPs access specific endpoints:
 ----------------------
 
 ```python
-from guard import SecurityDecorator
+from guard import SecurityConfig, SecurityDecorator
 
+# response body scanning for return_monitor
+config = SecurityConfig(
+    behavior_scan_response_body=True,
+)
 guard_deco = SecurityDecorator(config)
 
 
@@ -423,7 +427,11 @@ For distributed applications, ensure Redis is configured:
 
 ```python
 config = SecurityConfig(
-    enable_redis=True, redis_url="redis://localhost:6379", redis_prefix="fastapi_guard:"
+    enable_redis=True,
+    redis_url="redis://localhost:6379",
+    redis_prefix="fastapi_guard:",
+    # response body scanning for return_monitor
+    behavior_scan_response_body=True,
 )
 
 # Behavioral tracking will use Redis for distributed state

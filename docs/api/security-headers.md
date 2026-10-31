@@ -228,14 +228,14 @@ The following headers are configured by default:
 |--------|--------------|-------------|
 | `X-Content-Type-Options` | `nosniff` | Prevents MIME type sniffing |
 | `X-Frame-Options` | `SAMEORIGIN` | Prevents clickjacking attacks |
-| `X-XSS-Protection` | `0` | Enables XSS filtering |
+| `X-XSS-Protection` | `0` | Turns the legacy browser XSS filter off |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Controls referrer information |
 | `Permissions-Policy` | `geolocation=(), microphone=(), camera=()` | Restricts browser features |
 | `X-Permitted-Cross-Domain-Policies` | `none` | Restricts Adobe Flash cross-domain access |
 | `X-Download-Options` | `noopen` | Prevents file download execution in IE |
-| `Cross-Origin-Embedder-Policy` | `require-corp` | Controls cross-origin resource embedding |
+| `Cross-Origin-Embedder-Policy` | not sent (opt in with `cross_origin_embedder_policy`) | Controls cross-origin resource embedding |
 | `Cross-Origin-Opener-Policy` | `same-origin` | Controls cross-origin window interactions |
-| `Cross-Origin-Resource-Policy` | `same-origin` | Controls cross-origin resource access |
+| `Cross-Origin-Resource-Policy` | `same-site` | Controls cross-origin resource access |
 
 ___
 

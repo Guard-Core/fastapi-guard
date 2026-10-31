@@ -200,7 +200,7 @@ Logging Suspicious Activity
 Configure logging for suspicious activities:
 
 ```python
-config = SecurityConfig(custom_log_file="security.log", log_level="WARNING")
+config = SecurityConfig(custom_log_file="security.log", log_suspicious_level="WARNING")
 ```
 
 Example log output:
@@ -276,12 +276,12 @@ patterns = sus_patterns_manager_for(security_config)
 
 # Add custom pattern
 await patterns.add_pattern(
-    r"(?i)exec\s*\(\s*['\"].*['\"]\s*\)",  # Detect exec() calls
+    r"(?i)exec\s*\(\s*['\"][^'\"]*['\"]\s*\)",  # Detect exec() calls
     custom=True,
 )
 
 # Remove pattern
-await patterns.remove_pattern(r"(?i)exec\s*\(\s*['\"].*['\"]\s*\)", custom=True)
+await patterns.remove_pattern(r"(?i)exec\s*\(\s*['\"][^'\"]*['\"]\s*\)", custom=True)
 
 # Get all patterns
 all_patterns = await patterns.get_all_patterns()

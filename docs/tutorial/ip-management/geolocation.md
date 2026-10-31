@@ -21,9 +21,15 @@ class GeoIPHandler(Protocol):
 
     async def initialize(self) -> None: ...
 
-    async def initialize_redis(self, redis_handler: "RedisManager") -> None: ...
+    async def initialize_redis(self, redis_handler: "RedisHandlerProtocol") -> None: ...
+
+    async def initialize_agent(self, agent_handler: "AgentHandlerProtocol") -> None: ...
 
     def get_country(self, ip: str) -> str | None: ...
+
+    async def refresh(self) -> None: ...
+
+    def close(self) -> None: ...
 ```
 
 It provides an implementation that uses the [ipinfo.io](https://ipinfo.io/signup) service:
@@ -48,14 +54,15 @@ Option 1: Using the built-in IPInfoHandler
 ```python
 config = SecurityConfig(
     geo_ip_handler=IPInfoManager(
-        "your_ipinfo_token_here"
+        "your_ipinfo_token_here",
+        db_path=Path("custom/ipinfo.db"),  # Optional custom database path
     ),  # NOTE: Required when using country filtering
     blocked_countries=["CN", "RU"],  # Block specific countries
-    whitelist_countries=["US", "CA"],
-    db_path="custom/ipinfo.db",  # Optional custom database path
-    block_cloud_providers={"AWS", "GCP"},  # Case-sensitive provider names
+    block_cloud_providers={"AWS", "GCP"},  # Provider names, matched case-insensitively
 )
 ```
+
+Use `whitelist_countries=["US", "CA"]` instead of `blocked_countries` to allow only those countries. A non-empty `whitelist_countries` is restrictive, so `blocked_countries` has no effect while it is set and guard-core warns about the combination.
 
 Option 2: Providing a custom geographical IP handler
 ----------------------------------------------------
@@ -75,7 +82,11 @@ class CustomGeoIPHandler:
         # your implementation
         ...
 
-    async def initialize_redis(self, redis_handler: "RedisManager") -> None:
+    async def initialize_redis(self, redis_handler: "RedisHandlerProtocol") -> None:
+        # your implementation
+        ...
+
+    async def initialize_agent(self, agent_handler: "AgentHandlerProtocol") -> None:
         # your implementation
         ...
 
@@ -83,13 +94,19 @@ class CustomGeoIPHandler:
         # your implementation
         ...
 
+    async def refresh(self) -> None:
+        # your implementation
+        ...
+
+    def close(self) -> None:
+        # your implementation
+        ...
+
 
 config = SecurityConfig(
     geo_ip_handler=CustomGeoIPHandler(),
     blocked_countries=["CN", "RU"],  # Block specific countries
-    whitelist_countries=["US", "CA"],
-    db_path="custom/ipinfo.db",  # Optional custom database path
-    block_cloud_providers={"AWS", "GCP"},  # Case-sensitive provider names
+    block_cloud_providers={"AWS", "GCP"},  # Provider names, matched case-insensitively
 )
 ```
 

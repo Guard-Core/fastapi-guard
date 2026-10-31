@@ -129,18 +129,19 @@ Checks execute in this order (defined in guard-core's `DEFAULT_CHECK_CLASSES`, `
 3. **HttpsEnforcementCheck** - HTTPS enforcement (can redirect)
 4. **RequestLoggingCheck** - Log request
 5. **RequestSizeContentCheck** - Validate size/content
-6. **RequiredHeadersCheck** - Check required headers
-7. **AuthenticationCheck** - Verify authentication
-8. **ReferrerCheck** - Check referrer
-9. **CustomValidatorsCheck** - Custom validators
-10. **TimeWindowCheck** - Time-based access
-11. **CloudIpRefreshCheck** - Periodic maintenance
-12. **IpSecurityCheck** - IP whitelist/blacklist
-13. **CloudProviderCheck** - Cloud provider blocking
-14. **UserAgentCheck** - User agent filtering
-15. **RateLimitCheck** - Rate limiting
-16. **SuspiciousActivityCheck** - Threat detection
-17. **CustomRequestCheck** - Custom checks
+6. **CloudIpRefreshCheck** - Periodic maintenance
+7. **IpSecurityCheck** - IP whitelist/blacklist
+8. **CloudProviderCheck** - Cloud provider blocking
+9. **UserAgentCheck** - User agent filtering
+10. **CorsPreflightCheck** - CORS preflight answers
+11. **RateLimitCheck** - Rate limiting
+12. **RequiredHeadersCheck** - Check required headers
+13. **AuthenticationCheck** - Verify authentication
+14. **ReferrerCheck** - Check referrer
+15. **CustomValidatorsCheck** - Custom validators
+16. **TimeWindowCheck** - Time-based access
+17. **SuspiciousActivityCheck** - Threat detection
+18. **CustomRequestCheck** - Custom checks
 
 Pipeline Construction Skips Checks Configuration Can Never Trigger
 ---------------------------------------------------------------------
@@ -227,10 +228,12 @@ class SecurityEventBus:
         self,
         request: Request,
         client_ip: str,
-        cloud_providers: list[str],
+        cloud_providers_to_check: list[str],
         route_config: RouteConfig | None,
-        cloud_handler: Any,
+        cloud_handler: CloudManager,
         passive_mode: bool,
+        cloud_details: tuple[str, str] | None = None,
+        attribution: dict[str, object] | None = None,
     ) -> None:
         """Send cloud provider detection events."""
         ...
@@ -249,8 +252,8 @@ Collects and reports request metrics.
 
 ```python
 class MetricsCollector:
-    async def send_security_metric(
-        self, metric_name: str, value: float, tags: dict[str, str] | None = None
+    async def send_metric(
+        self, metric_type: str, value: float, tags: dict[str, str] | None = None
     ) -> None:
         """Send individual security metric."""
         ...
@@ -258,9 +261,8 @@ class MetricsCollector:
     async def collect_request_metrics(
         self,
         request: Request,
-        response: Response,
         response_time: float,
-        client_ip: str,
+        status_code: int,
     ) -> None:
         """Collect comprehensive request metrics."""
         ...
@@ -435,7 +437,7 @@ class RequestValidator:
         """Check if request uses HTTPS."""
         ...
 
-    def is_trusted_proxy(self, client_ip: str) -> bool:
+    def is_trusted_proxy(self, connecting_ip: str) -> bool:
         """Validate if IP is a trusted proxy."""
         ...
 
@@ -443,8 +445,8 @@ class RequestValidator:
         """Validate time window restrictions."""
         ...
 
-    def is_path_excluded(self, path: str) -> bool:
-        """Check if path is excluded from security checks."""
+    async def is_path_excluded(self, request: Request) -> bool:
+        """Check if the request path is excluded from security checks."""
         ...
 ```
 
@@ -593,12 +595,9 @@ from guard_core.core.checks.base import SecurityCheck
 class MyCustomCheck(SecurityCheck):
     """Description of what this check does."""
 
-    check_name = "my_custom_check"
-
-    def __init__(self, middleware: "SecurityMiddleware"):
-        self.middleware = middleware
-        self.config = middleware.config
-        self.logger = middleware.logger
+    @property
+    def check_name(self) -> str:
+        return "my_custom_check"
 
     async def check(self, request: Request) -> Response | None:
         # Get context from request.state

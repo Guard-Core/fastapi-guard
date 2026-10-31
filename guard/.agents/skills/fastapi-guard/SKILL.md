@@ -120,7 +120,7 @@ See [the IP filtering reference](references/ip-filtering.md) for country rules, 
 
 ## Rate Limiting
 
-Global limit plus optional per-endpoint overrides. Redis is used for distributed state when `enable_redis=True` (default); without Redis, limits are per-process.
+Global limit plus optional per-endpoint overrides. Redis is used for distributed state when `enable_redis=True` or a Redis connection field such as `redis_url` is set (guard-core 5.0.0 leaves Redis off otherwise); without Redis, limits are per-process.
 
 ```python
 config = SecurityConfig(

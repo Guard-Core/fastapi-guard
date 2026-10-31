@@ -111,7 +111,7 @@ async def is_ip_allowed(
     """
 ```
 
-The `geo_ip_handler` parameter is now properly optional - it's only needed when country filtering is configured. If it's not provided when country filtering is configured, the function will work correctly but won't apply country filtering rules rules.
+The `geo_ip_handler` parameter is now properly optional - it's only needed when country filtering is configured. If it's not provided when country filtering is configured, the function will work correctly but won't apply country filtering rules.
 
 This function intelligently handles:
 
@@ -129,7 +129,7 @@ async def detect_penetration_attempt(
     request: Request,
     config: SecurityConfig | None = None,
     route_config: RouteConfig | None = None,
-) -> DetectionResult
+) -> DetectionResult: ...
 ```
 
 Detect potential penetration attempts in the request using the enhanced Detection Engine.

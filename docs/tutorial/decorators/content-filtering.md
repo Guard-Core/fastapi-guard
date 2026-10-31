@@ -136,9 +136,7 @@ Block specific user agent patterns for individual routes:
 
 ```python
 @app.get("/api/human-only")
-@guard_deco.block_user_agents(
-    [r".*bot.*", r".*crawler.*", r".*spider.*", r".*scraper.*"]
-)
+@guard_deco.block_user_agents([r"bot", r"crawler", r"spider", r"scraper"])
 def human_only_endpoint():
     return {"message": "Human users only"}
 ```
@@ -168,12 +166,12 @@ def no_automation_endpoint():
 @app.get("/api/secure")
 @guard_deco.block_user_agents(
     [
-        r".*sqlmap.*",
-        r".*nikto.*",
-        r".*nmap.*",
-        r".*masscan.*",
-        r".*nessus.*",
-        r".*burp.*",
+        r"sqlmap",
+        r"nikto",
+        r"nmap",
+        r"masscan",
+        r"nessus",
+        r"burp",
     ]
 )
 def secure_endpoint():
@@ -333,7 +331,7 @@ Stack multiple content filtering decorators for comprehensive validation:
 @guard_deco.content_type_filter(["image/jpeg", "image/png"])
 @guard_deco.max_request_size(5 * 1024 * 1024)  # 5MB limit
 @guard_deco.require_referrer(["myapp.com"])
-@guard_deco.block_user_agents([r".*bot.*", r"curl.*"])
+@guard_deco.block_user_agents([r"bot", r"curl.*"])
 def complete_upload():
     return {"status": "All validations passed"}
 ```
@@ -364,7 +362,7 @@ def partner_api():
 @guard_deco.content_type_filter(["application/json"])
 @guard_deco.max_request_size(50 * 1024 * 1024)  # 50MB
 @guard_deco.require_referrer(["internal.mycompany.com"])
-@guard_deco.block_user_agents([r".*bot.*"])
+@guard_deco.block_user_agents([r"bot"])
 def internal_api():
     return {"tier": "internal"}
 ```
@@ -458,7 +456,7 @@ Apply multiple content filters for defense in depth:
 @guard_deco.content_type_filter(["application/json"])  # Only JSON
 @guard_deco.max_request_size(1024 * 1024)             # Size limit
 @guard_deco.require_referrer(["myapp.com"])           # Trusted source
-@guard_deco.block_user_agents([r".*bot.*"])           # No bots
+@guard_deco.block_user_agents([r"bot"])           # No bots
 ```
 
 . Match Limits to Functionality
