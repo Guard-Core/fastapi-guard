@@ -466,11 +466,11 @@ The middleware delegates to specialized modules in `guard_core/core/`:
 Benefits of Modular Architecture
 --------------------------------
 
-- **Maintainability**: Each module < 200 LOC, single responsibility
+- **Maintainability**: Each check is a class in its own module under `guard_core/core/checks/implementations/`. Of the 69 modules under `guard_core/core/`, 51 are 200 lines or shorter and the largest is 798 lines (`checks/helpers.py`), measured on guard-core 5.0.0 with `find guard_core/core -name '*.py' ! -name '__init__.py' | xargs wc -l` from a guard-core checkout
 - **Testability**: Each component independently testable
 - **Performance**: Better caching and optimization opportunities
 - **Extensibility**: Easy to add new checks or modify behavior
-- **Development Speed**: 2-3x faster feature additions (projected)
+- **Development Speed**: A new check is one `SecurityCheck` subclass in its own module plus its entry in `checks/factory.py`. The 18 checks written so far take 35 to 512 lines (median 140). No speed-up is measured, so the page states none
 
 ___
 
