@@ -1,7 +1,9 @@
 import asyncio
+import contextlib
 import json
 import logging
 import time
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
@@ -23,6 +25,8 @@ from guard_core.protocols import GuardRequest, GuardResponse
 from guard_core.utils import IpAccessResult
 from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
+from redis import Redis as SyncRedis
+from redis.asyncio import Redis as AsyncRedis
 from redis.exceptions import RedisError
 from starlette.applications import Starlette
 from starlette.routing import Match, Route
@@ -30,6 +34,7 @@ from starlette.testclient import TestClient
 
 from guard.adapters import StarletteGuardRequest, StarletteGuardResponse
 from guard.middleware import SecurityMiddleware
+from tests.redis_isolation import REDIS_URL
 
 
 def assert_log_activity_called_with(mock_log: Mock, **expected_kwargs: Any) -> None:
@@ -1577,6 +1582,29 @@ async def _create_error_response(
     return StarletteGuardResponse(Response(message, status_code=status_code))
 
 
+@contextlib.contextmanager
+def _own_evalsha_calls() -> Iterator[list[object]]:
+    """The EVALSHA calls this process's async Redis clients make.
+
+    Redis's ``cmdstat_evalsha`` counter is server-wide: any other client on the
+    same Redis (another test run, another service) moves it.
+    """
+    calls: list[object] = []
+    original = AsyncRedis.evalsha
+
+    async def counting(self: AsyncRedis, *args: Any, **kwargs: Any) -> Any:
+        calls.append(args[0])
+        return await original(self, *args, **kwargs)
+
+    with patch.object(AsyncRedis, "evalsha", counting):
+        yield calls
+
+
+def _server_evalsha_calls(client: SyncRedis) -> int:
+    stats = client.info("commandstats").get("cmdstat_evalsha", {})
+    return int(stats.get("calls", 0))
+
+
 async def _three_checks(handler: Any) -> list[Any]:
     guard_request = _loopback_guard_request()
     return [
@@ -1598,16 +1626,14 @@ async def test_lua_script_execution(security_config_redis: SecurityConfig) -> No
     handler, redis = await _redis_rate_limiter(config)
     try:
         assert handler.rate_limit_script_sha is not None
-        async with redis.get_connection() as conn:
-            before = (await conn.info("commandstats")).get("cmdstat_evalsha", {})
+        with _own_evalsha_calls() as evalsha_calls:
             results = await _three_checks(handler)
-            after = (await conn.info("commandstats")).get("cmdstat_evalsha", {})
 
         assert results[0] is None
         assert results[1] is None
         assert results[2] is not None
         assert results[2].status_code == status.HTTP_429_TOO_MANY_REQUESTS
-        assert after.get("calls", 0) - before.get("calls", 0) >= 3
+        assert len(evalsha_calls) == 3
     finally:
         await redis.delete_pattern("rate_limit:rate:*")
         await redis.close()
@@ -1624,18 +1650,46 @@ async def test_fallback_to_pipeline(security_config_redis: SecurityConfig) -> No
     handler, redis = await _redis_rate_limiter(config)
     try:
         handler.rate_limit_script_sha = None
-        async with redis.get_connection() as conn:
-            before = (await conn.info("commandstats")).get("cmdstat_evalsha", {})
+        with _own_evalsha_calls() as evalsha_calls:
             results = await _three_checks(handler)
-            after = (await conn.info("commandstats")).get("cmdstat_evalsha", {})
 
         assert results[0] is None
         assert results[1] is None
         assert results[2] is not None
         assert results[2].status_code == status.HTTP_429_TOO_MANY_REQUESTS
         assert results[2].body == b"Too many requests"
-        assert after.get("calls", 0) == before.get("calls", 0)
+        assert evalsha_calls == []
     finally:
+        await redis.delete_pattern("rate_limit:rate:*")
+        await redis.close()
+
+
+@pytest.mark.asyncio
+async def test_fallback_to_pipeline_ignores_other_clients_on_the_same_redis(
+    security_config_redis: SecurityConfig,
+) -> None:
+    """Another client's EVALSHA on a shared Redis is not this test's call"""
+    config = security_config_redis
+    config.rate_limit = 2
+    config.rate_limit_window = 60
+    config.enable_rate_limiting = True
+
+    handler, redis = await _redis_rate_limiter(config)
+    other_client = SyncRedis.from_url(REDIS_URL)
+    try:
+        handler.rate_limit_script_sha = None
+        with _own_evalsha_calls() as evalsha_calls:
+            before = _server_evalsha_calls(other_client)
+            other_client.eval("return 1", 0)
+            other_client.evalsha(other_client.script_load("return 1"), 0)
+            results = await _three_checks(handler)
+            after = _server_evalsha_calls(other_client)
+
+        assert after > before
+        assert results[2] is not None
+        assert evalsha_calls == []
+    finally:
+        other_client.close()
         await redis.delete_pattern("rate_limit:rate:*")
         await redis.close()
 
