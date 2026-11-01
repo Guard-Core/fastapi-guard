@@ -69,7 +69,16 @@ config = SecurityConfig(
 )
 ```
 
-The same exists for headers and JSON body keys (`excluded_detection_headers`, `excluded_detection_body_fields`); names are matched case-insensitively, and body keys at any nesting depth. To limit the exclusion to one route, use the decorator instead of the global setting:
+The same exists for headers and JSON body keys (`excluded_detection_headers`, `excluded_detection_body_fields`); names are matched case-insensitively, and body keys at any nesting depth. Headers carrying URLs are the usual header case: `referer` and `origin` hold full URLs and can trip the `ssrf` category on endpoints that legitimately receive them.
+
+```python
+config = SecurityConfig(
+    enable_penetration_detection=True,
+    excluded_detection_headers={"referer", "origin"},
+)
+```
+
+Excluding a name stops the semantic analysis of that value; the pattern-based checks still run against it, so the header is not fully silenced. To limit the exclusion to one route, use the decorator instead of the global setting:
 
 ```python
 from guard import SecurityDecorator

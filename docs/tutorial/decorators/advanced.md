@@ -136,7 +136,7 @@ def authorize(redirect_uri: str):
     return {"status": "redirecting"}
 ```
 
-`headers` and `body_fields` take the same shape. The global equivalents are `excluded_detection_params`, `excluded_detection_headers` and `excluded_detection_body_fields` on `SecurityConfig`.
+`headers` and `body_fields` take the same shape. The global equivalents are `excluded_detection_params`, `excluded_detection_headers` and `excluded_detection_body_fields` on `SecurityConfig`. Headers that carry URLs, such as `referer` and `origin`, are the usual header case: excluding one stops its semantic analysis but leaves the pattern-based checks running against it.
 
 ___
 

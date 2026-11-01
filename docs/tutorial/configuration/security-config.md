@@ -58,7 +58,7 @@ New configuration fields for the enhanced Detection Engine:
 | `detection_monitor_history_size` | int | 1000 | Number of performance metrics to keep in history |
 | `detection_max_tracked_patterns` | int | 1000 | Maximum patterns to track for performance |
 | `detection_scan_body` | bool | True | Scan the request body during penetration detection; when False, detection is restricted to the URL path, query params, and headers |
-| `excluded_detection_headers` | set[str] | `set()` | Header names to skip during penetration detection, merged with the built-in exclusions; matched case-insensitively |
+| `excluded_detection_headers` | set[str] | `set()` | Header names to skip during penetration detection, merged with the built-in exclusions; matched case-insensitively. Skips semantic analysis only (useful for URL-bearing headers like `referer` and `origin` that trip `ssrf`); pattern-based checks still run |
 | `excluded_detection_params` | set[str] | `set()` | Query parameter names to skip during penetration detection (an OAuth `redirect_uri` that carries a loopback URL, for example); matched case-insensitively. Per route: `@guard_deco.detection_exclusion(params=...)` |
 | `excluded_detection_body_fields` | set[str] | `set()` | JSON body keys to skip during penetration detection, at any nesting depth, also applied to form and multipart text field names |
 | `detection_threat_score_threshold` | float | 1.0 | Anomaly score required to flag a request as a threat (0.0-10.0) |
