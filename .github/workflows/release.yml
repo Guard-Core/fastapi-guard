@@ -13,10 +13,21 @@ jobs:
       contents: read
       pull-requests: write
     uses: ./.github/workflows/ci.yml
-    secrets: inherit
+    secrets:
+      IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+
+  cve-scan:
+    # The release never runs a weaker gate than a pull request (spec 14.3b); on a release event the SBOM is attached to the release.
+    permissions:
+      contents: write # attach the SBOM to the release
+      security-events: write # SARIF
+    uses: Guard-Core/.github/.github/workflows/cve-scan.yml@f993c869090ce2d5b9cfaebba93c318a86838456 # cve-scan (merged commit)
+    with:
+      tools_ref: f993c869090ce2d5b9cfaebba93c318a86838456
+      release_tag: ${{ github.event.release.tag_name }}
 
   publish:
-    needs: ci-gate
+    needs: [ci-gate, cve-scan]
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: '3.10'
@@ -28,17 +39,19 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Packaging only (the wheel is pure Python); the matrix gate is the ci-gate job above.
           python-version: '3.10'
 
       - name: Install dependencies
         run: |
-          pip install uv
+          pip install uv==0.13.4
           uv sync --locked --only-group release --no-install-project
 
       - name: Build package
@@ -46,7 +59,7 @@ jobs:
           uv run --no-sync python -m build
 
       - name: Publish package
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
       - name: Get and Update Version
         id: get_version
         run: |
@@ -78,7 +91,7 @@ jobs:
 
       - name: Update Docs Version Secret
         if: ${{ env.UPDATE_SECRET == 'true' }}
-        uses: rennf93/github-actions-secrets-mgmt@v1.5
+        uses: rennf93/github-actions-secrets-mgmt@6dc05c707be6f28e69a4570fa705687881933b8b # v1.5
         with:
           OWNER: ${{ github.repository_owner }}
           REPOSITORY: ${{ github.event.repository.name }}

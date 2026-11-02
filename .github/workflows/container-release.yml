@@ -20,34 +20,38 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set version tag
         id: set_version
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "VERSION=${{ github.event.release.tag_name }}" >> "$GITHUB_ENV"
+            echo "VERSION=${GITHUB_EVENT_RELEASE_TAG_NAME}" >> "$GITHUB_ENV"
             echo "IS_RELEASE=true" >> "$GITHUB_ENV"
           else
             echo "VERSION=latest" >> "$GITHUB_ENV"
             echo "IS_RELEASE=false" >> "$GITHUB_ENV"
           fi
+        env:
+          GITHUB_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Container publish, no tests run here; the CI matrix owns the versions.
           python-version: '3.10'
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Compose
-        uses: docker/setup-compose-action@v2
+        uses: docker/setup-compose-action@54042514f505b273907334ae2b9cdbb9a0213c1a # v2.4.0
         with:
           version: latest
 
@@ -61,6 +65,20 @@ jobs:
           echo "Available Docker images:"
           docker images
 
+      - name: Check out the CVE scan tools (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Guard-Core/.github
+          ref: f993c869090ce2d5b9cfaebba93c318a86838456
+          path: .cve-scan-tools
+          persist-credentials: false
+
+      - name: Scan the image before the push (any advisory with a fixed version fails)
+        run: |
+          IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "fastapi-guard-example" | head -n 1)
+          .cve-scan-tools/cve-scan/install_scanners.sh "$RUNNER_TEMP/scanner-bin"
+          python3 -I .cve-scan-tools/cve-scan/cve_scan.py --images-only --image-ref "demo=$IMAGE" --root . --osv "$RUNNER_TEMP/scanner-bin/osv-scanner" --trivy "$RUNNER_TEMP/scanner-bin/trivy" --out "$RUNNER_TEMP/image-scan-out"
+
       - name: Tag and Push to GHCR
         run: |
           IMAGE_NAME=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "fastapi-guard-example" | head -n 1)
@@ -69,8 +87,8 @@ jobs:
           docker tag "${IMAGE_NAME}" ghcr.io/guard-core/fastapi-guard-example:latest
           docker push ghcr.io/guard-core/fastapi-guard-example:latest
 
-          if [[ "${{ env.IS_RELEASE }}" == "true" ]]; then
-            docker tag "${IMAGE_NAME}" ghcr.io/guard-core/fastapi-guard-example:${{ env.VERSION }}
-            docker push ghcr.io/guard-core/fastapi-guard-example:${{ env.VERSION }}
+          if [[ "${IS_RELEASE}" == "true" ]]; then
+            docker tag "${IMAGE_NAME}" "ghcr.io/guard-core/fastapi-guard-example:${VERSION}"
+            docker push "ghcr.io/guard-core/fastapi-guard-example:${VERSION}"
           fi
 

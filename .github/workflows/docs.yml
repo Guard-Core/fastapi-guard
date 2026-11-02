@@ -31,18 +31,18 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Pinned on purpose (LEDGER 6.69): the docs build does not depend on the interpreter and 3.14 is the version the mkdocstrings setup was verified on; the test matrix in ci.yml owns every supported version.
           python-version: '3.14'
 
       - name: Install dependencies
         run: |
-          pip install uv
+          pip install uv==0.13.4
           uv sync --locked --python 3.14 --extra dev --group docs
 
       - name: Build documentation
@@ -88,7 +88,7 @@ jobs:
 
       - name: Update Docs Version Secret
         if: ${{ env.UPDATE_SECRET == 'true' }}
-        uses: rennf93/github-actions-secrets-mgmt@v1.5
+        uses: rennf93/github-actions-secrets-mgmt@6dc05c707be6f28e69a4570fa705687881933b8b # v1.5
         with:
           OWNER: ${{ github.repository_owner }}
           REPOSITORY: ${{ github.event.repository.name }}
@@ -98,8 +98,8 @@ jobs:
 
       - name: Deploy documentation
         run: |
-          uv run --no-sync mike deploy --push ${{ env.VERSION }}
-          uv run --no-sync mike alias --update-aliases --push ${{ env.VERSION }} latest
+          uv run --no-sync mike deploy --push "${VERSION}"
+          uv run --no-sync mike alias --update-aliases --push "${VERSION}" latest
           uv run --no-sync mike set-default --push latest
 
       - name: Deploy to GitHub Pages
@@ -109,13 +109,17 @@ jobs:
 
       - name: Update Context7 Documentation
         id: context7
-        uses: rennf93/upsert-context7@1.1
+        uses: rennf93/upsert-context7@c29ca04a37ecbab62635c0e94c3d8908049b9ed5 # 1.1
         with:
           operation: refresh
 
       - name: Show result
         run: |
-          echo "Success: ${{ steps.context7.outputs.success }}"
-          echo "Status: ${{ steps.context7.outputs.status-code }}"
-          echo "Message: ${{ steps.context7.outputs.message }}"
+          echo "Success: ${STEPS_CONTEXT7_OUTPUTS_SUCCESS}"
+          echo "Status: ${STEPS_CONTEXT7_OUTPUTS_STATUS_CODE}"
+          echo "Message: ${STEPS_CONTEXT7_OUTPUTS_MESSAGE}"
+        env:
+          STEPS_CONTEXT7_OUTPUTS_SUCCESS: ${{ steps.context7.outputs.success }}
+          STEPS_CONTEXT7_OUTPUTS_STATUS_CODE: ${{ steps.context7.outputs.status-code }}
+          STEPS_CONTEXT7_OUTPUTS_MESSAGE: ${{ steps.context7.outputs.message }}
 

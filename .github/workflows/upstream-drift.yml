@@ -5,6 +5,9 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   upstream-drift:
     runs-on: ubuntu-latest
@@ -18,7 +21,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis:8.10.3@sha256:de1068af6f552240dfab67bcc9bfef99bfc60f776bb4580ef077ea4c8c97e848
         ports:
           - 6379:6379
         options: >-
@@ -34,23 +37,26 @@ jobs:
 
     steps:
       - name: Checkout fastapi-guard
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Checkout guard-core@master
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: Guard-Core/guard-core
           ref: master
           path: guard-core-upstream
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: |
-          pip install uv
+          pip install uv==0.13.4
 
       - name: Assert uv resolves the matrix interpreter
         run: |

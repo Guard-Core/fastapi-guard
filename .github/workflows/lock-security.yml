@@ -17,15 +17,17 @@ jobs:
       relock: ${{ steps.decision.outputs.relock }}
       issues: ${{ steps.decision.outputs.issues }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
 
       - name: Install the locked tools
         run: |
-          pip install uv
+          pip install uv==0.13.4
           uv sync --locked --python 3.14 --extra dev
 
       - name: Audit the committed lock and decide
@@ -43,7 +45,7 @@ jobs:
           echo "relock=$(jq -r '.relock' decision.json)" >> "$GITHUB_OUTPUT"
           echo "issues=$(jq -r '.issues | length' decision.json)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lock-decision
           path: |
@@ -66,9 +68,9 @@ jobs:
       pull-requests: write
       actions: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lock-decision
 
@@ -88,9 +90,11 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lock-decision
 

@@ -6,22 +6,27 @@ on:
     - cron: '0 9 * * 1'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   scheduled-pre-commit:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Tooling job with no test run: pre-commit and the lock tools need Python 3.11 (filelock 4.2.1, D-164), and mypy keeps python_version 3.10 in pyproject.toml; the test matrix owns the other versions.
           python-version: '3.11'
 
       - name: Install uv
-        run: pip install uv
+        run: pip install uv==0.13.4
 
       - name: Install dependencies
         run: uv sync --locked --extra dev
@@ -31,17 +36,19 @@ jobs:
         run: uv run pre-commit run --all-files
 
       - name: Checkout code
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Tooling job with no test run: pre-commit and the lock tools need Python 3.11 (filelock 4.2.1, D-164), and mypy keeps python_version 3.10 in pyproject.toml; the test matrix owns the other versions.
           python-version: '3.11'
 
       - name: Install the locked docs tools
         run: |
-          pip install uv
+          pip install uv==0.13.4
           uv sync --locked --group docs
 
       - name: Run markdown checks
