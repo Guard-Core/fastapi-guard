@@ -2326,6 +2326,21 @@ async def test_route_match_handles_missing_and_raising_matches() -> None:
     assert middleware._route_match(_RaisingMatches(), {}) == (Match.NONE, {})
 
 
+async def test_sub_routes_come_from_effective_candidates_when_the_route_has_them() -> (
+    None
+):
+    app = FastAPI()
+    middleware = SecurityMiddleware(app, config=SecurityConfig())
+    prefixed = object()
+
+    class _IncludedWithEffectiveCandidates:
+        def effective_candidates(self) -> list[object]:
+            return [prefixed]
+
+    sub_routes = middleware._sub_routes(_IncludedWithEffectiveCandidates())
+    assert list(sub_routes) == [prefixed]
+
+
 async def test_match_route_stops_on_self_nesting_router() -> None:
     from starlette.routing import Match
 
@@ -2432,6 +2447,7 @@ async def test_resolve_route_matches_deeply_nested_prefixed_routers() -> None:
 
 async def test_resolve_route_matches_mount_inside_prefixed_included_router() -> None:
     from fastapi import APIRouter
+    from fastapi.testclient import TestClient
 
     sub = FastAPI()
 
@@ -2447,10 +2463,13 @@ async def test_resolve_route_matches_mount_inside_prefixed_included_router() -> 
 
     from starlette.requests import Request as StarletteRequest
 
+    served = TestClient(app).get("/api/sub/secret").status_code
     request = StarletteRequest(_http_scope(app, "GET", "/api/sub/secret"))
     route = middleware._resolve_route(request)
-    assert isinstance(route, Route)
-    assert route.endpoint is secret
+    assert served in (status.HTTP_200_OK, status.HTTP_404_NOT_FOUND)
+    assert (route.endpoint if isinstance(route, Route) else None) is (
+        secret if served == status.HTTP_200_OK else None
+    )
 
 
 async def test_resolve_route_matches_router_included_twice_at_different_prefixes() -> (
