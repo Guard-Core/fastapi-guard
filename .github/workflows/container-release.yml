@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Guard-Core/.github
-          ref: f993c869090ce2d5b9cfaebba93c318a86838456
+          ref: b3f52dbfccdfff9395efbc0c05f558610ca97546
           path: .cve-scan-tools
           persist-credentials: false
 

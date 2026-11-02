@@ -13,7 +13,8 @@ base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
 git switch -C "$branch"
 git add uv.lock
 git commit -m "$subject"
-git push --force origin "$branch"
+# The checkout keeps no credentials (artipacked): the push takes the token from GH_TOKEN through a credential helper, never from argv or the URL.
+git -c "credential.helper=!f() { echo username=x-access-token; echo \"password=\$GH_TOKEN\"; }; f" push --force origin "$branch"
 
 number=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
 if [ -n "$number" ]; then

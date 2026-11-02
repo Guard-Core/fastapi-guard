@@ -1,51 +1,58 @@
 name: Greetings
 
-on: [pull_request_target, issues]
+# Thin caller of the org's reusable greeting workflow (LEDGER 6.509, D-234). No pull_request_target: a pull request's first-time author is greeted
+# by the hourly look-back below on this repo's own GITHUB_TOKEN, an issue by its `issues` event. The messages are this repo's.
+on:
+  issues:
+    types: [opened]
+  schedule:
+    - cron: '19 * * * *'
+  workflow_dispatch:
+
+permissions: {}
 
 jobs:
   greeting:
-    runs-on: ubuntu-latest
     permissions:
       issues: write
       pull-requests: write
-    steps:
-    - uses: actions/first-interaction@1c4688942c71f71d4f5502a26ea67c331730fa4d # v3.1.0
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        issue_message: |
-            Thanks for opening your first issue on **fastapi-guard**!
+    uses: Guard-Core/.github/.github/workflows/greetings.yml@b3f52dbfccdfff9395efbc0c05f558610ca97546 # greetings (merged commit)
+    with:
+      tools_ref: b3f52dbfccdfff9395efbc0c05f558610ca97546
+      issue_message: |
+        Thanks for opening your first issue on **fastapi-guard**!
 
-            To help us triage quickly, please make sure your report includes:
-            - A clear reproduction (a short FastAPI app or failing test is ideal)
-            - Output of `python --version && uv --version`
-            - The Python version range supported (`>=3.10,<3.16`) and which version you're on
-            - `pip show fastapi guard-core fastapi-guard` (or equivalent) so we can see installed versions
-            - Operating system, ASGI server (uvicorn / hypercorn / daphne), and Redis configuration if relevant
-            - Logs / tracebacks / middleware ordering details
+        To help us triage quickly, please make sure your report includes:
+        - A clear reproduction (a short FastAPI app or failing test is ideal)
+        - Output of `python --version && uv --version`
+        - The Python version range supported (`>=3.10,<3.16`) and which version you're on
+        - `pip show fastapi guard-core fastapi-guard` (or equivalent) so we can see installed versions
+        - Operating system, ASGI server (uvicorn / hypercorn / daphne), and Redis configuration if relevant
+        - Logs / tracebacks / middleware ordering details
 
-            A few pointers:
-            - Read [CONTRIBUTING.md](../blob/master/CONTRIBUTING.md) for the bug-report and enhancement guidelines.
-            - We follow the [Contributor Covenant Code of Conduct](../blob/master/CODE_OF_CONDUCT.md).
-            - **Security vulnerability?** Do **not** open a public issue - please follow [SECURITY.md](../blob/master/SECURITY.md) and use GitHub's private vulnerability reporting.
-            - Questions rather than a bug? Ask in Discord `#help`: https://discord.gg/ZW7ZJbjMkK
+        A few pointers:
+        - Read [CONTRIBUTING.md](../blob/master/CONTRIBUTING.md) for the bug-report and enhancement guidelines.
+        - We follow the [Contributor Covenant Code of Conduct](../blob/master/CODE_OF_CONDUCT.md).
+        - **Security vulnerability?** Do **not** open a public issue - please follow [SECURITY.md](../blob/master/SECURITY.md) and use GitHub's private vulnerability reporting.
+        - Questions rather than a bug? Ask in Discord `#help`: https://discord.gg/ZW7ZJbjMkK
 
-            Thanks again - a maintainer will be with you soon.
-        pr_message: |
-            Thanks for opening your first pull request on **fastapi-guard**!
+        Thanks again - a maintainer will be with you soon.
+      pr_message: |
+        Thanks for opening your first pull request on **fastapi-guard**!
 
-            Quick checklist before review (most of these are enforced by CI, but worth a glance):
-            - [ ] The PR body says `Closes #N` for an open issue (the `issue-link` check enforces it); chores take the `no-issue` label
-            - [ ] `make lint` - `ruff format`, `ruff check`, `mypy`, and `vulture`
-            - [ ] `make test` - full test suite passes with 100% coverage
-            - [ ] `make security` - `bandit`, `safety`, and `pip-audit` all clean
-            - [ ] `make quality` - `radon` and `xenon` complexity thresholds respected
-            - [ ] No `# noqa` / `# type: ignore` shortcuts; pre-existing violations in touched files are fixed
-            - [ ] Added an entry under `## Unreleased` in [CHANGELOG.md](../blob/master/CHANGELOG.md)
-            - [ ] If you touched a public API, updated the relevant page under `docs/`
-            - [ ] If the change involves engine logic, the corresponding fix landed in `guard-core` first
+        Quick checklist before review (most of these are enforced by CI, but worth a glance):
+        - [ ] The PR body says `Closes #N` for an open issue (the `issue-link` check enforces it); chores take the `no-issue` label
+        - [ ] `make lint` - `ruff format`, `ruff check`, `mypy`, and `vulture`
+        - [ ] `make test` - full test suite passes with 100% coverage
+        - [ ] `make security` - `bandit`, `safety`, and `pip-audit` all clean
+        - [ ] `make quality` - `radon` and `xenon` complexity thresholds respected
+        - [ ] No `# noqa` / `# type: ignore` shortcuts; pre-existing violations in touched files are fixed
+        - [ ] Added an entry under `## Unreleased` in [CHANGELOG.md](../blob/master/CHANGELOG.md)
+        - [ ] If you touched a public API, updated the relevant page under `docs/`
+        - [ ] If the change involves engine logic, the corresponding fix landed in `guard-core` first
 
-            See [CONTRIBUTING.md](../blob/master/CONTRIBUTING.md) for the full workflow and the [Code of Conduct](../blob/master/CODE_OF_CONDUCT.md) for the community standards we follow.
+        See [CONTRIBUTING.md](../blob/master/CONTRIBUTING.md) for the full workflow and the [Code of Conduct](../blob/master/CODE_OF_CONDUCT.md) for the community standards we follow.
 
-            Questions while you work: Discord `#help`, https://discord.gg/ZW7ZJbjMkK
+        Questions while you work: Discord `#help`, https://discord.gg/ZW7ZJbjMkK
 
-            Welcome aboard - a maintainer will review shortly.
+        Welcome aboard - a maintainer will review shortly.
