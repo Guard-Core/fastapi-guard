@@ -11,12 +11,19 @@ on:
       - '.github/workflows/container-release.yml'
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: container-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish-container:
+    name: publish-container
     runs-on: ubuntu-latest
     permissions:
-      packages: write
-      contents: read
+      packages: write # push the image to GHCR
+      contents: read # check out the repository
 
     steps:
       - name: Checkout code
@@ -27,7 +34,7 @@ jobs:
       - name: Set version tag
         id: set_version
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
+          if [[ "${EVENT_NAME}" == "release" ]]; then
             echo "VERSION=${GITHUB_EVENT_RELEASE_TAG_NAME}" >> "$GITHUB_ENV"
             echo "IS_RELEASE=true" >> "$GITHUB_ENV"
           else
@@ -36,6 +43,7 @@ jobs:
           fi
         env:
           GITHUB_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          EVENT_NAME: ${{ github.event_name }}
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -69,7 +77,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Guard-Core/.github
-          ref: b3f52dbfccdfff9395efbc0c05f558610ca97546
+          ref: b77067336bbd96d7b8244ca425de197bdcf0001c
           path: .cve-scan-tools
           persist-credentials: false
 

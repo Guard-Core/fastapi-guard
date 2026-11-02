@@ -6,10 +6,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: lock-upgrade
+  cancel-in-progress: false
 
 jobs:
   upgrade:
+    name: upgrade
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -45,6 +50,7 @@ jobs:
           path: uv.lock
 
   refresh-pr:
+    name: refresh-pr
     needs: upgrade
     if: needs.upgrade.outputs.changed == 'true'
     runs-on: ubuntu-latest
@@ -54,9 +60,9 @@ jobs:
       group: lock-refresh-pr
       cancel-in-progress: true
     permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+      contents: write # push the chore/lock-refresh branch
+      pull-requests: write # open or refresh the lock pull request
+      actions: write # dispatch CI on the pushed lock branch (events caused by GITHUB_TOKEN start no workflow run)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

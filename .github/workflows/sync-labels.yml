@@ -14,11 +14,18 @@ on:
         default: 'false'
         type: boolean
 
-permissions:
-  issues: write
+permissions: {}
+
+concurrency:
+  group: sync-labels
+  cancel-in-progress: false
 
 jobs:
   labeler:
+    name: labeler
+    permissions:
+      contents: read # check out the repository
+      issues: write # create, update and delete the repository labels
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

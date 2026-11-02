@@ -5,8 +5,12 @@ on:
     types: [opened, edited, reopened, synchronize, labeled, unlabeled]
 
 permissions:
-  issues: read
-  pull-requests: read
+  issues: read # read the issue the pull request says it closes
+  pull-requests: read # read the pull request body and labels
+
+concurrency:
+  group: issue-link-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   issue-link:

@@ -7,10 +7,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: live-smoke-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   live-smoke:
+    name: live-smoke
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

@@ -7,10 +7,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: scheduled-lint
+  cancel-in-progress: false
 
 jobs:
   scheduled-pre-commit:
+    name: scheduled-pre-commit
     runs-on: ubuntu-latest
 
     steps:

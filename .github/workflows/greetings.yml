@@ -11,14 +11,19 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: greetings
+  cancel-in-progress: false
+
 jobs:
   greeting:
+    name: greeting
     permissions:
-      issues: write
-      pull-requests: write
-    uses: Guard-Core/.github/.github/workflows/greetings.yml@b3f52dbfccdfff9395efbc0c05f558610ca97546 # greetings (merged commit)
+      issues: write # comment on a first issue
+      pull-requests: write # comment on a first pull request
+    uses: Guard-Core/.github/.github/workflows/greetings.yml@b77067336bbd96d7b8244ca425de197bdcf0001c # greetings (merged commit)
     with:
-      tools_ref: b3f52dbfccdfff9395efbc0c05f558610ca97546
+      tools_ref: b77067336bbd96d7b8244ca425de197bdcf0001c
       issue_message: |
         Thanks for opening your first issue on **fastapi-guard**!
 

@@ -15,7 +15,11 @@ on:
         required: false
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -60,6 +64,7 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
   pre-commit:
+    name: pre-commit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -108,7 +113,7 @@ jobs:
           --health-retries 5
 
     permissions:
-      pull-requests: write
+      contents: read # check out the repository (the job calls no pull request API)
 
     strategy:
       matrix:
@@ -143,7 +148,10 @@ jobs:
 
       - name: Run tests
         run: |
-          COVERAGE_FILE=coverage-py${{ matrix.python-version }}.data IPINFO_TOKEN='${{ secrets.IPINFO_TOKEN || 'test_token' }}' REDIS_URL='redis://localhost:6379' REDIS_PREFIX='test:fastapi_guard:' uv run pytest -v --cov=guard --cov-branch
+          COVERAGE_FILE=coverage-py${MATRIX_PYTHON_VERSION}.data IPINFO_TOKEN="${IPINFO_TOKEN}" REDIS_URL='redis://localhost:6379' REDIS_PREFIX='test:fastapi_guard:' uv run pytest -v --cov=guard --cov-branch
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN || 'test_token' }}
 
       - name: Upload coverage data
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

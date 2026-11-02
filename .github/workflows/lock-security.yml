@@ -7,10 +7,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: lock-security
+  cancel-in-progress: false
 
 jobs:
   decide:
+    name: decide
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -55,6 +60,7 @@ jobs:
           if-no-files-found: ignore
 
   refresh-pr:
+    name: refresh-pr
     needs: decide
     if: needs.decide.outputs.relock == 'true'
     runs-on: ubuntu-latest
@@ -64,9 +70,9 @@ jobs:
       group: lock-refresh-pr
       cancel-in-progress: true
     permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+      contents: write # push the chore/lock-refresh branch
+      pull-requests: write # open or refresh the lock pull request
+      actions: write # dispatch CI on the pushed lock branch (events caused by GITHUB_TOKEN start no workflow run)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -84,13 +90,14 @@ jobs:
           bash .github/scripts/lock_pr.sh chore/lock-refresh "build(deps): refresh uv.lock after the hourly security run" pr-body.md
 
   open-issues:
+    name: open-issues
     needs: decide
     if: needs.decide.outputs.issues != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
-      issues: write
+      contents: read # check out the repository
+      issues: write # open or refresh one issue per advisory
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

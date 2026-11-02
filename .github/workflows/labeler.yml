@@ -2,12 +2,19 @@ name: Labeler
 
 on: [pull_request_target]
 
+permissions: {}
+
+concurrency:
+  group: labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   label:
+    name: label
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: write
+      contents: read # read .github/labeler.yml
+      pull-requests: write # add and remove labels on the pull request
 
     steps:
       - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0

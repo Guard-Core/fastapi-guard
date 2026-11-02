@@ -33,14 +33,20 @@ on:
     - cron: '0 0 * * 1'
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: code-ql-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
     permissions:
-      actions: read
-      contents: read
-      security-events: write
+      actions: read # read the workflow run data the analysis needs
+      contents: read # check out the code CodeQL analyzes
+      security-events: write # upload the SARIF results to code scanning
 
     strategy:
       matrix:

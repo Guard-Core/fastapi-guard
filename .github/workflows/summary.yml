@@ -10,12 +10,19 @@ on:
         required: true
         type: number
 
+permissions: {}
+
+concurrency:
+  group: summary-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
 jobs:
   summary:
+    name: summary
     runs-on: ubuntu-latest
     permissions:
-      issues: write
-      models: read
+      issues: write # comment on the issue and remove the needs-summary label
+      models: read # call GitHub Models for the summary
 
     if: >-
       github.event_name == 'workflow_dispatch' ||

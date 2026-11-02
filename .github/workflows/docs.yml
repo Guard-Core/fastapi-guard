@@ -20,8 +20,7 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: docs-deploy
@@ -29,6 +28,10 @@ concurrency:
 
 jobs:
   deploy:
+    name: deploy
+    environment: docs
+    permissions:
+      contents: write # mike pushes the versioned docs to the gh-pages branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -69,8 +72,8 @@ jobs:
           fi
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
-          if [[ -n "${{ secrets.DOCS_VERSION }}" ]]; then
-            STORED_VERSION=${{ secrets.DOCS_VERSION }}
+          if [[ -n "${DOCS_VERSION}" ]]; then
+            STORED_VERSION=${DOCS_VERSION}
             echo "STORED_VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
           else
             echo "::error::DOCS_VERSION secret not found"
@@ -86,6 +89,8 @@ jobs:
             echo "VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
             echo "UPDATE_SECRET=false" >> "$GITHUB_ENV"
           fi
+        env:
+          DOCS_VERSION: ${{ secrets.DOCS_VERSION }}
 
       - name: Update Docs Version Secret
         if: ${{ env.UPDATE_SECRET == 'true' }}

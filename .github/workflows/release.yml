@@ -5,28 +5,36 @@ on:
     types: [created]
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   ci-gate:
+    name: ci-gate
     # Same workflow file as the PR CI (python matrix, coverage gate): the release never runs a weaker gate.
     # A called workflow's jobs report as "ci-gate / <job>", so none of them can be mistaken for the required `ci` check.
     permissions:
-      contents: read
-      pull-requests: write
+      contents: read # check out the repository
     uses: $/.github/workflows/ci.yml
     secrets:
       IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
 
   cve-scan:
+    name: cve-scan
     # The release never runs a weaker gate than a pull request (spec 14.3b); on a release event the SBOM is attached to the release.
     permissions:
       contents: write # attach the SBOM to the release
       security-events: write # SARIF
-    uses: Guard-Core/.github/.github/workflows/cve-scan.yml@b3f52dbfccdfff9395efbc0c05f558610ca97546 # cve-scan (merged commit)
+    uses: Guard-Core/.github/.github/workflows/cve-scan.yml@b77067336bbd96d7b8244ca425de197bdcf0001c # cve-scan (merged commit)
     with:
-      tools_ref: b3f52dbfccdfff9395efbc0c05f558610ca97546
+      tools_ref: b77067336bbd96d7b8244ca425de197bdcf0001c
       release_tag: ${{ github.event.release.tag_name }}
 
   publish:
+    name: publish
     needs: [ci-gate, cve-scan]
     runs-on: ubuntu-latest
     env:
@@ -34,8 +42,8 @@ jobs:
       UV_PYTHON_DOWNLOADS: never
     environment: pypi
     permissions:
-      id-token: write
-      contents: read
+      id-token: write # trusted publishing: the registry login uses the GitHub OIDC token
+      contents: read # check out the repository
 
     steps:
       - name: Checkout code
@@ -71,8 +79,8 @@ jobs:
           fi
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
-          if [[ -n "${{ secrets.DOCS_VERSION }}" ]]; then
-            STORED_VERSION=${{ secrets.DOCS_VERSION }}
+          if [[ -n "${DOCS_VERSION}" ]]; then
+            STORED_VERSION=${DOCS_VERSION}
             echo "STORED_VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
           else
             echo "::error::DOCS_VERSION secret not found"
@@ -88,6 +96,8 @@ jobs:
             echo "VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
             echo "UPDATE_SECRET=false" >> "$GITHUB_ENV"
           fi
+        env:
+          DOCS_VERSION: ${{ secrets.DOCS_VERSION }}
 
       - name: Update Docs Version Secret
         if: ${{ env.UPDATE_SECRET == 'true' }}

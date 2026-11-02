@@ -6,10 +6,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: upstream-drift
+  cancel-in-progress: false
 
 jobs:
   upstream-drift:
+    name: upstream-drift
+    environment: upstream-drift
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -79,5 +85,7 @@ jobs:
 
       - name: Run the fastapi-guard test suite against guard-core@master
         run: |
-          IPINFO_TOKEN='${{ secrets.IPINFO_TOKEN || 'test_token' }}' REDIS_URL='redis://localhost:6379' REDIS_PREFIX='test:fastapi_guard:' uv run --no-sync pytest -v --cov=guard --cov-branch
+          IPINFO_TOKEN="${IPINFO_TOKEN}" REDIS_URL='redis://localhost:6379' REDIS_PREFIX='test:fastapi_guard:' uv run --no-sync pytest -v --cov=guard --cov-branch
+        env:
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN || 'test_token' }}
 

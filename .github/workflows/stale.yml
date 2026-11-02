@@ -7,12 +7,19 @@ on:
     - cron: '16 22 * * *'
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: stale
+  cancel-in-progress: false
+
 jobs:
   stale:
+      name: stale
       runs-on: ubuntu-latest
       permissions:
-        issues: write
-        pull-requests: write
+        issues: write # label and close stale issues
+        pull-requests: write # label and close stale pull requests
 
       steps:
         - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
