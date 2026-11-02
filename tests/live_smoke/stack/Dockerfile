@@ -2,6 +2,8 @@ FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+RUN useradd --create-home --uid 10001 app
+
 WORKDIR /app
 
 COPY wheels/ /wheels/
@@ -19,6 +21,12 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+USER 10001
+
 EXPOSE 8000
+
+# Same probe as the compose services: /health must answer 2xx.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
 
 CMD ["gunicorn", "-c", "gunicorn.conf.py", "app.main:app"]

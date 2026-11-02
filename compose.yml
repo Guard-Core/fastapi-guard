@@ -27,6 +27,8 @@ services:
           PYTHON_VERSION: ${PYTHON_VERSION:-3.10}
       image: fastapi-guard-py${PYTHON_VERSION:-3.10}
       command: pytest -v --cov=.
+      healthcheck:
+        disable: true
       environment:
         - REDIS_URL=redis://redis:6379
         - REDIS_PREFIX=${REDIS_PREFIX:-"test:fastapi_guard:"}
@@ -36,7 +38,6 @@ services:
         - ./tests:/app/tests:z
         - ./docs:/app/docs:z
         - ./pyproject.toml:/app/pyproject.toml:z
-        - ./uv.lock:/app/uv.lock:z
         - ./vulture_whitelist.py:/app/vulture_whitelist.py:z
       depends_on:
         redis:

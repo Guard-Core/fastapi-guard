@@ -3,32 +3,8 @@ name: CodeQL
 on:
   push:
     branches: [master]
-    paths:
-      - 'compose.yml'
-      - 'data/**'
-      - 'Dockerfile'
-      - 'examples/**'
-      - 'guard/**'
-      - 'mypy.ini'
-      - '.pre-commit-config.yaml'
-      - 'pyproject.toml'
-      - 'pytest.ini'
-      - 'reqs.pip'
-      - 'tests/**'
   pull_request:
     branches: [master]
-    paths:
-      - 'compose.yml'
-      - 'data/**'
-      - 'Dockerfile'
-      - 'examples/**'
-      - 'guard/**'
-      - 'mypy.ini'
-      - '.pre-commit-config.yaml'
-      - 'pyproject.toml'
-      - 'pytest.ini'
-      - 'reqs.pip'
-      - 'tests/**'
   schedule:
     - cron: '0 0 * * 1'
   workflow_dispatch:
@@ -40,17 +16,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  analyze:
-    name: Analyze
+  # One job for every language, so the required check context is exactly `code-ql` (a matrix would suffix it
+  # with the language).
+  code-ql:
+    name: code-ql
     runs-on: ubuntu-latest
     permissions:
       actions: read # read the workflow run data the analysis needs
       contents: read # check out the code CodeQL analyzes
       security-events: write # upload the SARIF results to code scanning
-
-    strategy:
-      matrix:
-        language: [python]
 
     steps:
       - name: Checkout code
@@ -61,11 +35,10 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
-          languages: ${{ matrix.language }}
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+          languages: python,actions
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
-
+        with:
+          # The category of the earlier `analyze` job, so the existing analyses and alerts carry over.
+          category: .github/workflows/code-ql.yml:analyze/language:python

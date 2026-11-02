@@ -56,6 +56,10 @@ jobs:
         run: |
           uv run python tests/live_smoke/patch_example_config.py
 
+      - name: Let the non-root container user write the scenario data
+        run: |
+          chmod a+rwx tests/live_smoke/stack/scenario_data
+
       - name: Bring the live-smoke stack up
         run: |
           cd tests/live_smoke/stack

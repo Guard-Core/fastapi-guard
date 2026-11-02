@@ -158,6 +158,13 @@ analysis: deptry semgrep
 check-all: lint security quality analysis
 	@echo "All checks completed."
 
+# Local test
+.PHONY: local-test
+local-test:
+	@REDIS_URL=$${REDIS_URL:-redis://localhost:6379} \
+	uv run pytest -v --cov=guard --cov-report=term-missing
+	@find . | grep -E "(__pycache__|\\.pyc|\\.pyo|\\.pytest_cache|\\.ruff_cache|\\.mypy_cache)" | xargs rm -rf
+
 # Run tests (default Python version)
 .PHONY: test
 test:

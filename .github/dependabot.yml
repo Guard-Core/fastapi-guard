@@ -4,6 +4,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
+    groups:
+      actions:
+        patterns:
+          - "*"
     cooldown:
       default-days: 7
 
@@ -11,6 +18,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
     cooldown:
       default-days: 7
     groups:

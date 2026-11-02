@@ -5,10 +5,12 @@ on:
     branches: [master]
     paths:
       - 'Dockerfile'
+      - '**/Dockerfile'
       - '.github/workflows/docksec.yml'
   pull_request:
     paths:
       - 'Dockerfile'
+      - '**/Dockerfile'
       - '.github/workflows/docksec.yml'
   schedule:
     - cron: '0 6 * * 1'
@@ -47,7 +49,7 @@ jobs:
         # upload would fail every time, turning a routine fork contribution into a red
         # required check. Skip it there instead of forcing a failure.
         if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: docksec-results
           category: docksec

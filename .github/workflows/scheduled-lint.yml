@@ -59,17 +59,18 @@ jobs:
       - name: Run markdown checks
         id: markdown
         run: |
-          uv run --no-sync pymarkdownlnt scan docs README.md CHANGELOG.md > markdown_output.txt 2>&1
-          EXIT_CODE=$?
+          EXIT_CODE=0
+          uv run --no-sync pymarkdownlnt scan docs README.md CHANGELOG.md > markdown_output.txt 2>&1 || EXIT_CODE=$?
 
           OUTPUT=$(cat markdown_output.txt)
+          echo "$OUTPUT"
           {
             echo "output<<EOF"
             echo "$OUTPUT"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-          if [ $EXIT_CODE -eq 0 ]; then
+          if [ "$EXIT_CODE" -eq 0 ]; then
             echo "status=success" >> "$GITHUB_OUTPUT"
           else
             echo "status=failed" >> "$GITHUB_OUTPUT"

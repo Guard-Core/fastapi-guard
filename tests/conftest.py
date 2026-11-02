@@ -106,6 +106,14 @@ def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
     )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _engine_default_redis_url_follows_redis_url() -> None:
+    # A SecurityConfig built without redis_url falls back to localhost:6379, which
+    # is not where Redis lives inside the compose network.
+    SecurityConfig.model_fields["redis_url"].default = REDIS_URL
+    SecurityConfig.model_rebuild(force=True)
+
+
 @pytest.fixture(autouse=True)
 async def reset_state() -> AsyncGenerator[None, None]:
     # Reset IPBanManager

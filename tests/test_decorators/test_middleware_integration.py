@@ -1,3 +1,4 @@
+import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -12,6 +13,8 @@ from starlette.datastructures import Headers
 from guard import SecurityConfig, SecurityDecorator
 from guard.adapters import StarletteGuardResponse
 from guard.middleware import SecurityMiddleware
+
+REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 
 
 def _http_scope(

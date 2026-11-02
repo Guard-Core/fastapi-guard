@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -8,6 +10,8 @@ from guard._middleware_state import _STATE_REGISTRY
 from guard.lifespan import guard_lifespan
 from guard.middleware import SecurityMiddleware
 from tests.redis_isolation import REDIS_URL
+
+REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 
 DEAD_REDIS_URL = "redis://127.0.0.1:6399"
 
