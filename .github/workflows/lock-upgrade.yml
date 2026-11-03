@@ -37,7 +37,7 @@ jobs:
       - name: Check whether the lock moved
         id: diff
         run: |
-          if git diff --quiet -- uv.lock tools/semgrep/uv.lock; then
+          if git diff --quiet -- uv.lock tools/semgrep/uv.lock tools/semgrep/rules.yaml; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -50,6 +50,7 @@ jobs:
           path: |
             uv.lock
             tools/semgrep/uv.lock
+            tools/semgrep/rules.yaml
 
   refresh-pr:
     name: refresh-pr
@@ -79,7 +80,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           {
-            echo "Daily make upgrade (D-157): third-party drift inside the 7 day release-age cooldown. Only uv.lock and tools/semgrep/uv.lock change."
+            echo "Daily make upgrade (D-157): third-party drift inside the 7 day release-age cooldown. Only uv.lock, tools/semgrep/uv.lock and the Semgrep rule snapshot tools/semgrep/rules.yaml change."
             echo
             echo "CI starts through a workflow_dispatch on this branch: events caused by GITHUB_TOKEN start no workflow runs."
           } > pr-body.md

@@ -296,9 +296,26 @@ jobs:
           uv run --no-sync coverage combine coverage-data/coverage-py*.data
           uv run --no-sync coverage report -m --fail-under=100
 
+  semgrep:
+    name: semgrep
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          # Tooling job with no test run: the locked Semgrep project (tools/semgrep) needs Python 3.10 or newer; the test matrix owns the other versions.
+          python-version: '3.11'
+      - run: pip install uv==0.13.4
+      # Rules come from the committed snapshot and findings from tools/semgrep/reviewed.json (LEDGER 6.581, D-252): no registry fetch, an unreviewed finding or an expired entry fails.
+      - run: make semgrep
+
   ci:
     name: ci
-    needs: [changes, pre-commit, test, coverage, test-lowest-direct]
+    needs: [changes, pre-commit, test, coverage, test-lowest-direct, semgrep]
     if: always()
     runs-on: ubuntu-latest
     steps:
