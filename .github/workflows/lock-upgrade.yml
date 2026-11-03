@@ -37,7 +37,7 @@ jobs:
       - name: Check whether the lock moved
         id: diff
         run: |
-          if git diff --quiet -- uv.lock; then
+          if git diff --quiet -- uv.lock tools/semgrep/uv.lock; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -47,7 +47,9 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         with:
           name: upgraded-lock
-          path: uv.lock
+          path: |
+            uv.lock
+            tools/semgrep/uv.lock
 
   refresh-pr:
     name: refresh-pr
@@ -77,7 +79,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           {
-            echo "Daily make upgrade (D-157): third-party drift inside the 7 day release-age cooldown. Only uv.lock changes."
+            echo "Daily make upgrade (D-157): third-party drift inside the 7 day release-age cooldown. Only uv.lock and tools/semgrep/uv.lock change."
             echo
             echo "CI starts through a workflow_dispatch on this branch: events caused by GITHUB_TOKEN start no workflow runs."
           } > pr-body.md

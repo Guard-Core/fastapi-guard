@@ -39,23 +39,27 @@ jobs:
         id: decision
         run: |
           uv run --no-sync python .github/scripts/lock_security.py --decision decision.json --lock-out uv.lock.new
+          uv run --no-sync python .github/scripts/lock_security.py --repo tools/semgrep --decision decision-semgrep.json --lock-out tools/semgrep/uv.lock.new
           {
-            echo "Hourly lock security run (D-157). Only uv.lock changes."
+            echo "Hourly lock security run (D-157). Only uv.lock and tools/semgrep/uv.lock change."
             echo
             jq -r '.fixed[] | "- \(.package) \(.from) to \(.to), the first version that fixes every advisory against it"' decision.json
+            jq -r '.fixed[] | "- tools/semgrep: \(.package) \(.from) to \(.to), the first version that fixes every advisory against it"' decision-semgrep.json
             jq -r 'if .first_party_changed then "- first-party releases inside the allowed range (" + (.first_party | join(", ")) + ")" else empty end' decision.json
             echo
             echo "CI starts through a workflow_dispatch on this branch: events caused by GITHUB_TOKEN start no workflow runs."
           } > pr-body.md
-          echo "relock=$(jq -r '.relock' decision.json)" >> "$GITHUB_OUTPUT"
-          echo "issues=$(jq -r '.issues | length' decision.json)" >> "$GITHUB_OUTPUT"
+          echo "relock=$(jq -s 'any(.[]; .relock)' decision.json decision-semgrep.json)" >> "$GITHUB_OUTPUT"
+          echo "issues=$(jq -s 'map(.issues | length) | add' decision.json decision-semgrep.json)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lock-decision
           path: |
             decision.json
+            decision-semgrep.json
             uv.lock.new
+            tools/semgrep/uv.lock.new
             pr-body.md
           if-no-files-found: ignore
 
@@ -86,7 +90,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mv uv.lock.new uv.lock
+          [ ! -f uv.lock.new ] || mv uv.lock.new uv.lock
+          [ ! -f tools/semgrep/uv.lock.new ] || mv tools/semgrep/uv.lock.new tools/semgrep/uv.lock
           bash .github/scripts/lock_pr.sh chore/lock-refresh "build(deps): refresh uv.lock after the hourly security run" pr-body.md
 
   open-issues:
@@ -110,4 +115,6 @@ jobs:
       - name: Open or refresh one issue per advisory
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/lock_issues.py decision.json
+        run: |
+          python3 .github/scripts/lock_issues.py decision.json
+          python3 .github/scripts/lock_issues.py decision-semgrep.json

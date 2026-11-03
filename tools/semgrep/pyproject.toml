@@ -1,0 +1,22 @@
+[project]
+name = "guard-semgrep-tool"
+version = "0.0.0"
+description = "Locked semgrep for make semgrep (LEDGER 6.538 and 6.580, D-251). Not a package."
+requires-python = ">=3.10,<3.16"
+dependencies = ["semgrep>=1.182.1,<2"]
+
+[tool.uv]
+package = false
+# Same release-age cooldown as the root lock (D-155, D-157).
+exclude-newer = "7 days"
+# semgrep pins mcp and the opentelemetry family exactly, to releases with open advisories (mcp 1.29.0: GHSA-84m7-p3x7-pcfv, GHSA-5h93-6whr-6q8j,
+# GHSA-w4fh-qvv9-3v23, GHSA-rwrf-2pqf-9j8j; opentelemetry-api 1.37.0: GHSA-xcq7-p3pf-p88h). mcp 2.x breaks semgrep (FastMCP renamed), so mcp stays below 2.
+override-dependencies = [
+    "mcp>=1.30.0,<2",
+    "opentelemetry-api>=1.45.1",
+    "opentelemetry-sdk>=1.45.1",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+    "opentelemetry-instrumentation>=0.66b0",
+    "opentelemetry-instrumentation-requests>=0.66b0",
+    "opentelemetry-instrumentation-threading>=0.66b0",
+]

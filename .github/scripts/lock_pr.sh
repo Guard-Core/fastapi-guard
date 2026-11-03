@@ -11,7 +11,7 @@ git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
 
 git switch -C "$branch"
-git add uv.lock
+git add uv.lock tools/semgrep/uv.lock
 git commit -m "$subject"
 # The checkout keeps no credentials (artipacked): the push takes the token from GH_TOKEN through a credential helper, never from argv or the URL.
 git -c "credential.helper=!f() { echo username=x-access-token; echo \"password=\$GH_TOKEN\"; }; f" push --force origin "$branch"

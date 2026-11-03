@@ -18,6 +18,7 @@ install-dev:
 .PHONY: lock
 lock:
 	@uv lock
+	@uv lock --directory tools/semgrep
 	@find . | grep -E "(__pycache__|\\.pyc|\\.pyo|\\.pytest_cache|\\.ruff_cache|\\.mypy_cache)" | xargs rm -rf
 
 
@@ -25,6 +26,7 @@ lock:
 .PHONY: upgrade
 upgrade:
 	@uv lock --upgrade
+	@uv lock --directory tools/semgrep --upgrade
 	@uv sync --all-extras
 	@find . | grep -E "(__pycache__|\\.pyc|\\.pyo|\\.pytest_cache|\\.ruff_cache|\\.mypy_cache)" | xargs rm -rf
 
@@ -135,7 +137,7 @@ deptry:
 semgrep:
 	@echo "Running Semgrep static analysis..."
 	@echo ''
-	@uv run semgrep --config=auto guard
+	@uv run --project tools/semgrep --locked semgrep --config=auto guard
 	@find . | grep -E "(__pycache__|\.pyc|\.pyo|\.pytest_cache|\.ruff_cache|\.mypy_cache)" | xargs rm -rf
 
 # Run all security checks
