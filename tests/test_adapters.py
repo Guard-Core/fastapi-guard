@@ -535,3 +535,22 @@ def test_asgi_scope_as_dict_keeps_a_dict_and_copies_any_other_mapping() -> None:
 
     assert asgi_scope_as_dict(scope) is scope
     assert asgi_scope_as_dict(UserDict(scope)) == scope
+
+
+class _ForeignResponse:
+    def __init__(self, headers: dict[str, str]) -> None:
+        self.status_code = 200
+        self.headers = headers
+        self.body = b"<script>alert(1)</script>"
+
+
+async def test_unwrap_foreign_response_without_content_type_is_text_plain() -> None:
+    unwrapped = unwrap_response(_ForeignResponse({"X-Test": "v"}))
+    assert unwrapped.headers["content-type"] == "text/plain; charset=utf-8"
+    assert unwrapped.body == b"<script>alert(1)</script>"
+
+
+async def test_unwrap_foreign_response_keeps_named_content_type_any_case() -> None:
+    unwrapped = unwrap_response(_ForeignResponse({"cOnTeNt-TyPe": "application/json"}))
+    assert unwrapped.headers["content-type"] == "application/json"
+    assert unwrapped.body == b"<script>alert(1)</script>"
