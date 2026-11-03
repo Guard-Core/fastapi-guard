@@ -83,6 +83,8 @@ def _sample_init_outage_line() -> bool:
 
 
 _FULL = (Match.FULL,)
+_MOUNT_TEMPLATE = "guard_mount_template"
+_ROUTE_TEMPLATE = "guard_route_template"
 _FULL_OR_PARTIAL = (Match.FULL, Match.PARTIAL)
 
 
@@ -406,10 +408,19 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     def _resolve_route_with_params(
         self, scope: Scope
     ) -> tuple[object, dict[str, object]]:
+        route, params, _ = self._resolve_route_match(scope)
+        return route, params
+
+    def _resolve_route_match(
+        self, scope: Scope
+    ) -> tuple[object, dict[str, object], str | None]:
         route = scope.get("route")
         if route:
-            return route, scope.get("path_params", {})
-        return next(self._matching_routes(scope, _FULL), (None, {}))
+            return route, scope.get("path_params", {}), getattr(route, "path", None)
+        route, params, matched = next(
+            self._matching_routes_in_scope(scope, _FULL), (None, {}, {})
+        )
+        return route, params, matched.get(_ROUTE_TEMPLATE)
 
     def _matching_routes(
         self, scope: Scope, accepted: tuple[Match, ...]
@@ -478,9 +489,20 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             match, child = self._route_match(r, scope)
             if match not in accepted:
                 continue
+            candidate = r
             r = self._unwrap_candidate(r)
             params = child.get("path_params", {})
             child_scope = {**scope, **child}
+            # The template is declared text only: each Mount's own path template and
+            # the route's, never root_path, which carries the end user's value. A
+            # FastAPI include proxy holds the path with the include prefix applied,
+            # which the unwrapped route lacks.
+            mount_template = scope.get(_MOUNT_TEMPLATE, "")
+            own = getattr(candidate, "path", None)
+            if not isinstance(own, str):
+                own = getattr(r, "path", None)
+            if isinstance(own, str):
+                child_scope[_ROUTE_TEMPLATE] = mount_template + own
             if getattr(r, "endpoint", None) is not None:
                 yield r, params, child_scope
                 continue
@@ -490,6 +512,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             if not sub_routes:
                 yield r, params, child_scope
             else:
+                if isinstance(r, Mount):
+                    child_scope[_MOUNT_TEMPLATE] = mount_template + r.path
                 # A Mount with middleware keeps the mounted app, whose routes these
                 # are, in _base_app and the middleware-wrapped one in app.
                 mounted = getattr(r, "_base_app", getattr(r, "app", None))
@@ -556,9 +580,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         )
 
     def _record_route_template(
-        self, guard_request: StarletteGuardRequest, route: object
+        self, guard_request: StarletteGuardRequest, template: object
     ) -> None:
-        template = getattr(route, "path", None)
         if isinstance(template, str):
             guard_request.state.guard_route_template = template
 
@@ -572,12 +595,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 guard_request.state.guard_decorator = app_decorator
 
         self._routing_app = request.scope.get("app")
-        route, path_params = self._resolve_route_with_params(request.scope)
+        route, path_params, template = self._resolve_route_match(request.scope)
         if not route:
             guard_request.state.guard_route_unresolved = True
             return
 
-        self._record_route_template(guard_request, route)
+        self._record_route_template(guard_request, template)
 
         ep = getattr(route, "endpoint", None)
         if ep is None:
