@@ -222,9 +222,13 @@ def security_config_redis(ipinfo_db_path: Path) -> SecurityConfig:
 
 
 @pytest.fixture(autouse=True)
-def redis_cleanup() -> Generator[None, None, None]:
-    """Delete only the keys under this suite's own prefix before and after each test"""
+def redis_cleanup() -> None:
+    """Delete only the keys under this suite's own prefix before each test"""
     delete_every_key_under_the_suite_prefix()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def redis_cleanup_at_session_end() -> Generator[None, None, None]:
     yield
     delete_every_key_under_the_suite_prefix()
 
