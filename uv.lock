@@ -1314,7 +1314,7 @@ wheels = [
 
 [[package]]
 name = "fastapi-guard"
-version = "8.1.2"
+version = "9.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
