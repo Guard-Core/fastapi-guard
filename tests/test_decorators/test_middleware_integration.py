@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -246,17 +247,17 @@ async def test_time_window_overnight() -> None:
     time_restrictions = {"start": "22:00", "end": "06:00"}
 
     with patch("guard_core.core.validation.validator.datetime") as mock_datetime:
-        mock_datetime.now.return_value.strftime.return_value = "23:00"
+        mock_datetime.now.return_value = datetime(2026, 1, 1, 23, 0)
         result = await middleware._check_time_window(time_restrictions)
         assert result is True
 
     with patch("guard_core.core.validation.validator.datetime") as mock_datetime:
-        mock_datetime.now.return_value.strftime.return_value = "05:00"
+        mock_datetime.now.return_value = datetime(2026, 1, 1, 5, 0)
         result = await middleware._check_time_window(time_restrictions)
         assert result is True
 
     with patch("guard_core.core.validation.validator.datetime") as mock_datetime:
-        mock_datetime.now.return_value.strftime.return_value = "12:00"
+        mock_datetime.now.return_value = datetime(2026, 1, 1, 12, 0)
         result = await middleware._check_time_window(time_restrictions)
         assert result is False
 
@@ -269,12 +270,12 @@ async def test_time_window_normal() -> None:
     time_restrictions = {"start": "09:00", "end": "17:00"}
 
     with patch("guard_core.core.validation.validator.datetime") as mock_datetime:
-        mock_datetime.now.return_value.strftime.return_value = "12:00"
+        mock_datetime.now.return_value = datetime(2026, 1, 1, 12, 0)
         result = await middleware._check_time_window(time_restrictions)
         assert result is True
 
     with patch("guard_core.core.validation.validator.datetime") as mock_datetime:
-        mock_datetime.now.return_value.strftime.return_value = "20:00"
+        mock_datetime.now.return_value = datetime(2026, 1, 1, 20, 0)
         result = await middleware._check_time_window(time_restrictions)
         assert result is False
 
