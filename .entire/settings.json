@@ -7,7 +7,7 @@
       "repo": "Guard-Core/guard-core-ecosystem"
     }
   },
-  "telemetry": true,
+  "telemetry": false,
   "checkpoints": {
     "primary": {
       "type": "git-refs"
