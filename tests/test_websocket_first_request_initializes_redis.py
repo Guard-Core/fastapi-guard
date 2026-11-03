@@ -15,6 +15,7 @@ from starlette.websockets import WebSocketDisconnect
 from guard._middleware_state import _STATE_REGISTRY
 from guard.middleware import SecurityMiddleware
 from guard.websocket import WS_CLOSE_EMERGENCY_MODE, guard_websocket
+from tests.redis_isolation import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 UNREACHABLE_REDIS_URL = "redis://127.0.0.1:1/12"
@@ -44,7 +45,7 @@ def _config(
     return SecurityConfig(
         enable_redis=True,
         redis_url=url,
-        redis_prefix=f"wp169{uuid.uuid4().hex[:8]}:",
+        redis_prefix=suite_redis_prefix(f"wp169{uuid.uuid4().hex[:8]}"),
         enable_penetration_detection=False,
         enable_rate_limiting=True,
         rate_limit=100,

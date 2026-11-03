@@ -66,3 +66,7 @@ def delete_every_key_under_the_suite_prefix() -> None:
             client.unlink(*pending)
     finally:
         client.close()
+
+
+def suite_redis_prefix(tag: str) -> str:
+    return f"{REDIS_PREFIX}{tag}:"

@@ -10,7 +10,7 @@ from guard_core.handlers.ipban_handler import (
 )
 from guard_core.models import SecurityConfig
 
-from tests.redis_isolation import REDIS_URL
+from tests.redis_isolation import REDIS_URL, suite_redis_prefix
 
 
 def _redis_config(prefix: str) -> SecurityConfig:
@@ -23,7 +23,8 @@ def _redis_config(prefix: str) -> SecurityConfig:
 
 
 async def test_a_second_prefix_app_leaves_the_default_manager_as_singleton() -> None:
-    first, second = _redis_config("wp186a:"), _redis_config("wp186b:")
+    first = _redis_config(suite_redis_prefix("wp186a"))
+    second = _redis_config(suite_redis_prefix("wp186b"))
     assert ip_ban_manager_for(first, bind=True) is ip_ban_manager
     own = ip_ban_manager_for(second, bind=True)
     assert own is not ip_ban_manager

@@ -11,6 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from starlette.types import Receive, Scope, Send
 
 from guard import PureASGISecurityMiddleware, SecurityConfig, SecurityMiddleware
+from tests.redis_isolation import suite_redis_prefix
 
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 PROXY = "10.0.0.1"
@@ -64,7 +65,7 @@ async def cleanup() -> AsyncIterator[list[SecurityConfig]]:
 async def test_a_ban_in_a_route_handler_goes_through_the_routes_own_app(
     middleware: Any, cleanup: list[SecurityConfig]
 ) -> None:
-    prefix = f"wp136-hold-{middleware.__name__}:"
+    prefix = suite_redis_prefix(f"wp136-hold-{middleware.__name__}")
     config_a, config_b = _config(prefix, [PROXY]), _config(prefix, [])
     cleanup.extend([config_a, config_b])
     seen_a: dict[str, Any] = {}
@@ -97,7 +98,7 @@ class _AfterSubApp:
 async def test_a_mounted_sub_app_hands_back_the_outer_apps_scope(
     middleware: Any,
 ) -> None:
-    prefix = f"wp136-mount-{middleware.__name__}:"
+    prefix = suite_redis_prefix(f"wp136-mount-{middleware.__name__}")
     config_outer, config_inner = _config(prefix, [PROXY]), _config(prefix, [])
     inner = _app(middleware, config_inner, {})
     after: list[Any] = []

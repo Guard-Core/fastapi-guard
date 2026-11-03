@@ -12,6 +12,7 @@ from guard_core.models import SecurityConfig
 
 from guard.lifespan import guard_lifespan, make_lifespan
 from guard.middleware import SecurityMiddleware
+from tests.redis_isolation import suite_redis_prefix
 
 REDIS_BASE_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6538/13")
 
@@ -86,7 +87,7 @@ def _redis_app(
 ) -> FastAPI:
     config = SecurityConfig(
         redis_url=f"{REDIS_BASE_URL}?client_name={client_name}",
-        redis_prefix=f"{client_name}:",
+        redis_prefix=suite_redis_prefix(client_name),
         enable_redis=True,
     )
     app = FastAPI(lifespan=lifespan)

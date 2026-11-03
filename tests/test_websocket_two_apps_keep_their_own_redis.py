@@ -10,6 +10,7 @@ from guard_core.models import SecurityConfig
 from guard.lifespan import _find_security_redis_handler
 from guard.middleware import SecurityMiddleware
 from guard.websocket import guard_websocket
+from tests.redis_isolation import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
@@ -42,7 +43,8 @@ def _config(prefix: str) -> SecurityConfig:
 
 def test_each_apps_websocket_checks_use_that_apps_redis_handler() -> None:
     tag = uuid.uuid4().hex[:8]
-    config_a, config_b = _config(f"wsa{tag}:"), _config(f"wsb{tag}:")
+    config_a = _config(suite_redis_prefix(f"wsa{tag}"))
+    config_b = _config(suite_redis_prefix(f"wsb{tag}"))
     app_a, app_b = _app(config_a), _app(config_b)
     found: dict[str, Any] = {}
 

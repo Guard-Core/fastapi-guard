@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from tests.redis_isolation import REDIS_URL
+from tests.redis_isolation import REDIS_URL, suite_redis_prefix
 
 PACKAGE = "guard"
 DISTRIBUTION = "fastapi-guard"
@@ -59,7 +59,8 @@ def test_the_adapter_imports_and_serves_with_none_of_the_four_installed() -> Non
 
 def test_a_redis_config_with_an_agent_serves_without_aiohttp_or_requests() -> None:
     config_kwargs = (
-        f"redis_url={REDIS_URL!r}, redis_prefix='wp49pin:', enable_agent=True, "
+        f"redis_url={REDIS_URL!r}, redis_prefix={suite_redis_prefix('wp49pin')!r}, "
+        "enable_agent=True, "
         "agent_api_key='wp49-pin-agent-key', agent_endpoint='http://127.0.0.1:9'"
     )
     status, loaded = _serve(("maxminddb", "aiohttp", "requests"), config_kwargs)

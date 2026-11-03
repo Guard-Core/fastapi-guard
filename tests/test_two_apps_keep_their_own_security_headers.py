@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from guard import PureASGISecurityMiddleware, SecurityConfig, SecurityMiddleware
+from tests.redis_isolation import suite_redis_prefix
 
 ORIGIN_A = "https://a.example"
 ORIGIN_B = "https://b.example"
@@ -26,7 +27,7 @@ def _app(
         config=SecurityConfig(
             enable_redis=redis,
             redis_url=REDIS_URL if redis else None,
-            redis_prefix="wp102:",
+            redis_prefix=suite_redis_prefix("wp102"),
             enable_rate_limiting=False,
             enable_ip_banning=False,
             enable_cors=True,
