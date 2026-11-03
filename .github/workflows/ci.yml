@@ -21,9 +21,6 @@ concurrency:
   group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-permissions:
-  contents: read
-
 jobs:
   changes:
     name: changes
@@ -163,6 +160,90 @@ jobs:
           path: coverage-py${{ matrix.python-version }}.data
           if-no-files-found: error
 
+  test-lowest-direct:
+    name: test-lowest-direct (${{ matrix.python-version }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    env:
+      # uv follows .python-version (3.11) unless told otherwise, so the matrix CPython was set up and never used.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:8.10.3@sha256:de1068af6f552240dfab67bcc9bfef99bfc60f776bb4580ef077ea4c8c97e848
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    permissions:
+      contents: read # check out the repository (the job calls no pull request API)
+
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          pip install uv==0.13.4
+
+      - name: Assert uv resolves the matrix interpreter (before sync)
+        run: |
+          uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+
+      - name: Install dependencies
+        run: |
+          uv sync --locked --extra dev
+
+      - name: Assert the synced environment runs the matrix interpreter
+        run: |
+          uv run --no-sync python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+
+      # 5.0.0 is not on PyPI: the engine comes from the gate's guard-core head (ecosystem-gate.yml builds the same wheel and force-installs it without dependencies).
+      - name: Check out the engine head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Guard-Core/guard-core
+          path: engine
+          persist-credentials: false
+
+      - name: Build the engine wheel
+        run: |
+          uv build --wheel --out-dir engine-dist engine
+
+      - name: Install the shipped dependencies at their declared floors, the engine from its head
+        run: |
+          echo "guard-core @ file://$PWD/$(ls engine-dist/*.whl)" > overrides.txt
+          uv pip compile pyproject.toml --override overrides.txt --extra agent --extra redis --extra geo --extra cloud --resolution lowest-direct --python-version "$MATRIX_PYTHON_VERSION" --no-emit-package guard-core --no-emit-package guard-agent --no-emit-package fastapi-guard --no-header -o floors.txt
+          uv pip install -r floors.txt
+          uv pip install --no-deps --force-reinstall engine-dist/*.whl
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+
+      - name: Run tests
+        run: |
+          COVERAGE_FILE=coverage-lowest-direct-py${MATRIX_PYTHON_VERSION}.data IPINFO_TOKEN="${IPINFO_TOKEN}" REDIS_URL='redis://localhost:6379' REDIS_PREFIX='test:fastapi_guard:' uv run --no-sync pytest -v --cov=guard --cov-branch
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN || 'test_token' }}
+
   coverage:
     name: coverage (combined across the matrix)
     needs: [changes, test]
@@ -217,7 +298,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [changes, pre-commit, test, coverage]
+    needs: [changes, pre-commit, test, coverage, test-lowest-direct]
     if: always()
     runs-on: ubuntu-latest
     steps:
