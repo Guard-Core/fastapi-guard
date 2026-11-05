@@ -233,12 +233,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 MiddlewareState,
                 get_state,
                 register_state,
+                state_owner,
             )
 
             self.guard_decorator = adopt_app_state_decorator(
                 self.guard_decorator, request
             )
-            warm = get_state(self.config, self.guard_decorator)
+            owner = state_owner(request, self)
+            warm = get_state(self.config, self.guard_decorator, owner)
             if warm is not None:
                 self._adopt_warm_state(warm)
                 self._initialized = True
@@ -261,6 +263,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     handler_initializer=self.handler_initializer,
                     agent_handler=self.agent_handler,
                 ),
+                owner,
             )
             self._initialized = True
 
