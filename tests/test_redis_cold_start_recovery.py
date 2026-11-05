@@ -149,7 +149,7 @@ async def test_fail_open_app_started_while_redis_was_down_uses_redis_once_back(
     assert keys_under(prefix) > 0
 
 
-async def test_fail_closed_app_recovers_on_the_next_request_as_before(
+async def test_fail_closed_app_answers_503_fast_then_recovers_after_the_interval(
     forwarder: RedisForwarder, prefix: str
 ) -> None:
     app = app_for(forwarder.url, prefix, fail_open=False)
@@ -158,7 +158,9 @@ async def test_fail_closed_app_recovers_on_the_next_request_as_before(
     ) as client:
         assert (await client.get("/h")).status_code == 503
         forwarder.on()
-        await asyncio.sleep(0.3)
+        # Redis is back, but the manager tries once per interval: still a fast 503.
+        assert (await client.get("/h")).status_code == 503
+        await asyncio.sleep(REDIS_OUTAGE_RETRY_AFTER + 0.3)
         assert (await client.get("/h")).status_code == 200
         assert (await client.get("/h")).status_code == 200
     assert keys_under(prefix) > 0
