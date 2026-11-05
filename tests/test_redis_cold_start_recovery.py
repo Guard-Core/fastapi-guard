@@ -1,6 +1,7 @@
 import asyncio
 import socket
 import threading
+import time
 import uuid
 from collections.abc import Iterator
 from urllib.parse import urlparse
@@ -8,7 +9,6 @@ from urllib.parse import urlparse
 import pytest
 import redis as redis_sync
 from fastapi import FastAPI
-from guard_core.core.checks.pipeline import REDIS_OUTAGE_RETRY_AFTER
 from httpx import ASGITransport, AsyncClient
 
 from guard import SecurityConfig, SecurityMiddleware
@@ -142,14 +142,14 @@ async def test_fail_open_app_started_while_redis_was_down_uses_redis_once_back(
         assert keys_under(prefix) == 0
 
         forwarder.on()
-        await asyncio.sleep(REDIS_OUTAGE_RETRY_AFTER + 0.3)
+        await asyncio.sleep(0.3)
         for _ in range(3):
             assert (await client.get("/h")).status_code == 200
 
     assert keys_under(prefix) > 0
 
 
-async def test_fail_closed_app_answers_503_fast_then_recovers_after_the_interval(
+async def test_fail_closed_app_serves_within_half_a_second_of_a_redis_blip(
     forwarder: RedisForwarder, prefix: str
 ) -> None:
     app = app_for(forwarder.url, prefix, fail_open=False)
@@ -157,10 +157,15 @@ async def test_fail_closed_app_answers_503_fast_then_recovers_after_the_interval
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         assert (await client.get("/h")).status_code == 503
+        await asyncio.sleep(0.1)
         forwarder.on()
-        # Redis is back, but the manager tries once per interval: still a fast 503.
-        assert (await client.get("/h")).status_code == 503
-        await asyncio.sleep(REDIS_OUTAGE_RETRY_AFTER + 0.3)
-        assert (await client.get("/h")).status_code == 200
+        restored = time.monotonic()
+        first_200 = None
+        while time.monotonic() - restored < 2.0:
+            if (await client.get("/h")).status_code == 200:
+                first_200 = time.monotonic() - restored
+                break
+            await asyncio.sleep(0.05)
+        assert first_200 is not None and first_200 < 0.5
         assert (await client.get("/h")).status_code == 200
     assert keys_under(prefix) > 0
