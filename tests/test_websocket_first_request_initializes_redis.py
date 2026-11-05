@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 import uuid
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -53,6 +54,12 @@ def _config(
         redis_fail_open=redis_fail_open,
         passive_mode=passive_mode,
     )
+
+
+def _wait_out_the_first_reconnect_window() -> None:
+    """A manager that failed to connect tries again after a window that starts at
+    0.25 s (LEDGER 6.644), so a Redis that is back is picked up within that."""
+    time.sleep(0.3)
 
 
 ClientFactory = Callable[[FastAPI], TestClient]
@@ -115,6 +122,7 @@ def test_unreachable_redis_refuses_handshake_and_http_then_recovers(
     assert client.get("/").status_code == 503
 
     config.redis_url = REDIS_URL
+    _wait_out_the_first_reconnect_window()
     with client.websocket_connect("/ws") as websocket:
         assert websocket.receive_text() == "connected"
     reader = redis.Redis.from_url(REDIS_URL)
@@ -161,6 +169,7 @@ def test_refused_cold_handshakes_construct_the_middleware_at_most_once(
     _refusal(client)
     _refusal(client)
     config.redis_url = REDIS_URL
+    _wait_out_the_first_reconnect_window()
     with client.websocket_connect("/ws") as websocket:
         assert websocket.receive_text() == "connected"
 

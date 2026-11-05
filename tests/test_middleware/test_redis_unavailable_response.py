@@ -1,3 +1,5 @@
+import time
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -34,6 +36,12 @@ def test_requests_get_503_with_retry_after_while_redis_is_unreachable() -> None:
             assert response.headers["Retry-After"] == "5"
 
 
+def _wait_out_the_first_reconnect_window() -> None:
+    """A manager that failed to connect tries again after a window that starts at
+    0.25 s (LEDGER 6.644), so a Redis that is back is picked up within that."""
+    time.sleep(0.3)
+
+
 def test_next_request_succeeds_once_redis_initialization_recovers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -50,6 +58,7 @@ def test_next_request_succeeds_once_redis_initialization_recovers(
             await real_initialize(self)
 
         monkeypatch.setattr(RedisManager, "initialize", _fake_initialize)
+        _wait_out_the_first_reconnect_window()
 
         second = client.get("/")
         assert second.status_code == 200
