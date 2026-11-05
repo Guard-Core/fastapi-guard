@@ -239,3 +239,5 @@ async with redis_handler.get_connection() as conn:
 ```
 
 Remember: You don't implement the RedisHandlerProtocol yourself - FastAPI Guard provides its built-in RedisManager which meets this protocol and is automatically passed to your custom GeoIPHandler.
+
+If you pass your own Redis handler to the engine, give it `is_connected() -> bool`; a `RedisHandlerBase` subclass inherits it from the built-in manager and overrides it only when its client lives somewhere other than `_redis`. With `redis_fail_open=True` the engine calls it after a cold-start reconnect, falls back to a `_redis` attribute when the handler has no `is_connected`, and reports a handler with neither at startup (a `ValueError` under the default `fail_on_misconfiguration=True`).
