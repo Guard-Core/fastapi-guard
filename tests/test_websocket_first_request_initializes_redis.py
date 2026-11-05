@@ -55,6 +55,15 @@ def _config(
     )
 
 
+def _let_the_reconnect_window_pass(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A manager that failed to connect tries again once per 5 s (LEDGER 6.644), so
+    "Redis is back" counts from the next window."""
+    from guard_core.handlers import _redis_reconnect_gate
+
+    later = _redis_reconnect_gate.monotonic() + 3600
+    monkeypatch.setattr(_redis_reconnect_gate, "monotonic", lambda: later)
+
+
 ClientFactory = Callable[[FastAPI], TestClient]
 
 
@@ -105,7 +114,7 @@ def test_websocket_as_first_request_writes_its_rate_key_to_redis(
 
 
 def test_unreachable_redis_refuses_handshake_and_http_then_recovers(
-    make_client: ClientFactory,
+    monkeypatch: pytest.MonkeyPatch, make_client: ClientFactory
 ) -> None:
     config = _config(UNREACHABLE_REDIS_URL)
     client = make_client(_app(config))
@@ -115,6 +124,7 @@ def test_unreachable_redis_refuses_handshake_and_http_then_recovers(
     assert client.get("/").status_code == 503
 
     config.redis_url = REDIS_URL
+    _let_the_reconnect_window_pass(monkeypatch)
     with client.websocket_connect("/ws") as websocket:
         assert websocket.receive_text() == "connected"
     reader = redis.Redis.from_url(REDIS_URL)
@@ -161,6 +171,7 @@ def test_refused_cold_handshakes_construct_the_middleware_at_most_once(
     _refusal(client)
     _refusal(client)
     config.redis_url = REDIS_URL
+    _let_the_reconnect_window_pass(monkeypatch)
     with client.websocket_connect("/ws") as websocket:
         assert websocket.receive_text() == "connected"
 
