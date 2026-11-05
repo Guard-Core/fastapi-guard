@@ -2,21 +2,27 @@ from __future__ import annotations
 
 import gc
 import weakref
+from collections.abc import Callable
 
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, WebSocket
 from fastapi.testclient import TestClient
 from guard_core.models import SecurityConfig
 
 from guard._middleware_state import get_state, register_state
 from guard.lifespan import guard_lifespan
 from guard.middleware import SecurityMiddleware
-from guard.websocket import _resolve_shared_suspicious_counts
+from guard.websocket import (
+    _get_ws_detection_middleware,
+    _resolve_shared_suspicious_counts,
+    guard_websocket,
+)
 
-# guard-core keeps one config in SusPatternsManager._config and one in the
-# module-level ip_ban_manager (the last config each was handed), so a fixed two
-# configs may outlive every app. Anything above that is a leaked app.
-ENGINE_SINGLETON_CONFIGS = 2
+# guard-core keeps one config in each of three singletons (the last config each was
+# handed): SusPatternsManager._config, the module-level ip_ban_manager and
+# _ban_threshold_report._remembered_context. Which of them hold one depends on what
+# ran last, so up to three configs may outlive every app. More is a leaked app.
+ENGINE_SINGLETON_CONFIGS = 3
 
 
 def _app(config: SecurityConfig, lifespan: bool = False) -> FastAPI:
@@ -27,6 +33,11 @@ def _app(config: SecurityConfig, lifespan: bool = False) -> FastAPI:
     def root() -> dict[str, bool]:
         return {"ok": True}
 
+    @app.websocket("/ws")
+    async def ws(websocket: WebSocket, _: None = Depends(guard_websocket)) -> None:
+        await websocket.accept()
+        await websocket.send_text("ok")
+
     return app
 
 
@@ -35,17 +46,45 @@ def _request_once(app: FastAPI) -> None:
         client.get("/")
 
 
+def _connect_websocket_once(app: FastAPI) -> None:
+    with (
+        TestClient(app, client=("127.0.0.1", 12345)) as client,
+        client.websocket_connect("/ws"),
+    ):
+        pass
+
+
 def _live_security_configs() -> int:
     gc.collect()
     return sum(1 for o in gc.get_objects() if isinstance(o, SecurityConfig))
 
 
-@pytest.mark.parametrize("apps", [10, 50])
-def test_dropped_apps_do_not_keep_their_security_config(apps: int) -> None:
-    before = _live_security_configs()
+def _serve_apps(apps: int, serve: Callable[[FastAPI], None]) -> int:
     for _ in range(apps):
-        _request_once(_app(SecurityConfig(enable_redis=False)))
-    assert _live_security_configs() - before <= ENGINE_SINGLETON_CONFIGS
+        serve(_app(SecurityConfig(enable_redis=False)))
+    return _live_security_configs()
+
+
+@pytest.mark.parametrize("serve", [_request_once, _connect_websocket_once])
+def test_dropped_apps_do_not_keep_their_security_config(
+    serve: Callable[[FastAPI], None],
+) -> None:
+    baseline = _live_security_configs()
+    live_after_10 = _serve_apps(10, serve)
+    live_after_50 = _serve_apps(40, serve)
+    assert live_after_10 - baseline <= ENGINE_SINGLETON_CONFIGS
+    assert live_after_50 == live_after_10
+
+
+def test_one_app_reuses_one_detection_middleware_across_connections() -> None:
+    config = SecurityConfig(enable_redis=False)
+    app = _app(config)
+    with TestClient(app, client=("127.0.0.1", 12345)) as client:
+        with client.websocket_connect("/ws"):
+            first = _get_ws_detection_middleware(config)
+        with client.websocket_connect("/ws"):
+            second = _get_ws_detection_middleware(config)
+    assert first is second
 
 
 def test_state_is_reused_by_a_rebuilt_middleware_and_the_websocket_path() -> None:

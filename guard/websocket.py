@@ -1,5 +1,6 @@
 import ipaddress
 import logging
+import weakref
 from collections.abc import Awaitable, Callable, Mapping
 from typing import NamedTuple
 
@@ -180,17 +181,34 @@ class _WebSocketDetectionMiddleware:
         return None
 
 
-_ws_detection_middlewares: dict[int, _WebSocketDetectionMiddleware] = {}
+_DETECTION_ATTRIBUTE = "_guard_ws_detection_middleware"
+
+
+class _WeakDetectionMiddlewares(weakref.WeakSet[_WebSocketDetectionMiddleware]):
+    """The detection middlewares alive, held weakly: each one is parked on its
+    config (like guard-core's app scope), so it lives and dies with that config and
+    no store is keyed on an id that could be reused. ``clear`` forgets them all.
+    """
+
+    def clear(self) -> None:
+        for middleware in list(self):
+            middleware.config.__dict__.pop(_DETECTION_ATTRIBUTE, None)
+        super().clear()
+
+
+_ws_detection_middlewares = _WeakDetectionMiddlewares()
 
 
 def _get_ws_detection_middleware(
     config: SecurityConfig,
 ) -> _WebSocketDetectionMiddleware:
-    key = id(config)
-    middleware = _ws_detection_middlewares.get(key)
+    middleware: _WebSocketDetectionMiddleware | None = config.__dict__.get(
+        _DETECTION_ATTRIBUTE
+    )
     if middleware is None:
         middleware = _WebSocketDetectionMiddleware(config)
-        _ws_detection_middlewares[key] = middleware
+        object.__setattr__(config, _DETECTION_ATTRIBUTE, middleware)
+        _ws_detection_middlewares.add(middleware)
     return middleware
 
 
