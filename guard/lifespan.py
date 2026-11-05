@@ -90,7 +90,9 @@ async def initialize_like_http_if_cold(app: object, config: SecurityConfig) -> N
     await middleware._ensure_initialized()
 
 
-def _register_state_from_middleware(middleware: SecurityMiddleware) -> None:
+def _register_state_from_middleware(
+    middleware: SecurityMiddleware, app: object
+) -> None:
     register_state(
         middleware.config,
         middleware.guard_decorator,
@@ -106,6 +108,7 @@ def _register_state_from_middleware(middleware: SecurityMiddleware) -> None:
             handler_initializer=middleware.handler_initializer,
             agent_handler=middleware.agent_handler,
         ),
+        app,
     )
 
 
@@ -114,7 +117,7 @@ async def _warm_middleware_or_adopt(
 ) -> None:
     middleware.guard_decorator = resolve_app_state_decorator(app)
     middleware._routing_app = app
-    warm = get_state(middleware.config, middleware.guard_decorator)
+    warm = get_state(middleware.config, middleware.guard_decorator, app)
     if warm is not None:
         middleware._adopt_warm_state(warm)
         middleware.mark_initialized()
@@ -129,7 +132,7 @@ async def _warm_middleware_or_adopt(
         )
         return
     middleware.mark_initialized()
-    _register_state_from_middleware(middleware)
+    _register_state_from_middleware(middleware, app)
 
 
 async def _release_redis_hold(app: object) -> None:

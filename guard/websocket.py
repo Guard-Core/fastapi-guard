@@ -197,7 +197,7 @@ def _get_ws_detection_middleware(
 def _resolve_shared_suspicious_counts(
     app: object, config: SecurityConfig
 ) -> dict[str, dict[str, int]] | None:
-    state = get_state(config, resolve_app_state_decorator(app))
+    state = get_state(config, resolve_app_state_decorator(app), app)
     if state is None:
         return None
     if state.security_pipeline is None:
