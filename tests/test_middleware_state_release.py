@@ -15,6 +15,7 @@ from guard._middleware_state import get_state, register_state
 from guard.lifespan import guard_lifespan
 from guard.middleware import SecurityMiddleware
 from guard.websocket import (
+    _DETECTION_ATTRIBUTE,
     _get_ws_detection_middleware,
     _resolve_shared_suspicious_counts,
     guard_websocket,
@@ -171,3 +172,32 @@ def test_a_copied_config_gets_its_own_detection_middleware(
     assert _get_ws_detection_middleware(clone) is middleware
     assert _get_ws_detection_middleware(config) is original
     assert original.config is config
+
+
+def _copy_forms() -> list[Callable[[SecurityConfig], SecurityConfig]]:
+    forms: list[Callable[[SecurityConfig], SecurityConfig]] = [
+        _model_copy,
+        _model_copy_update,
+        copy.copy,
+        copy.deepcopy,
+        _pickle_round_trip,
+    ]
+    replace = getattr(copy, "replace", None)
+    return [*forms, replace] if replace is not None else forms
+
+
+@pytest.mark.parametrize("copy_config", _copy_forms())
+def test_a_copy_of_a_config_that_served_a_websocket_carries_no_parked_record(
+    copy_config: Callable[[SecurityConfig], SecurityConfig],
+) -> None:
+    config = SecurityConfig(enable_redis=False)
+    app = _app(config)
+    with (
+        TestClient(app, client=("127.0.0.1", 12345)) as client,
+        client.websocket_connect("/ws"),
+    ):
+        pass
+    parked = config.__dict__[_DETECTION_ATTRIBUTE]
+    clone = copy_config(config)
+    assert _DETECTION_ATTRIBUTE not in clone.__dict__
+    assert config.__dict__[_DETECTION_ATTRIBUTE] is parked
