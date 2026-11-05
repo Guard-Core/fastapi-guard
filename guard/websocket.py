@@ -205,7 +205,7 @@ def _get_ws_detection_middleware(
     middleware: _WebSocketDetectionMiddleware | None = config.__dict__.get(
         _DETECTION_ATTRIBUTE
     )
-    if middleware is None:
+    if middleware is None or middleware.config is not config:
         middleware = _WebSocketDetectionMiddleware(config)
         object.__setattr__(config, _DETECTION_ATTRIBUTE, middleware)
         _ws_detection_middlewares.add(middleware)

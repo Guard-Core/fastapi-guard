@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import copy
 import gc
+import pickle
 import weakref
 from collections.abc import Callable
 
@@ -138,3 +140,34 @@ def test_an_owner_without_room_for_the_store_uses_the_ownerless_registry() -> No
     other = SecurityConfig(enable_redis=False)
     register_state(other, None, state, _SlottedOwner())
     assert get_state(other) is state
+
+
+def _model_copy(config: SecurityConfig) -> SecurityConfig:
+    return config.model_copy()
+
+
+def _model_copy_update(config: SecurityConfig) -> SecurityConfig:
+    return config.model_copy(update={"rate_limit": 7})
+
+
+def _pickle_round_trip(config: SecurityConfig) -> SecurityConfig:
+    clone: SecurityConfig = pickle.loads(pickle.dumps(config))
+    return clone
+
+
+@pytest.mark.parametrize(
+    "copy_config",
+    [_model_copy, _model_copy_update, copy.copy, copy.deepcopy, _pickle_round_trip],
+)
+def test_a_copied_config_gets_its_own_detection_middleware(
+    copy_config: Callable[[SecurityConfig], SecurityConfig],
+) -> None:
+    config = SecurityConfig(enable_redis=False)
+    original = _get_ws_detection_middleware(config)
+    clone = copy_config(config)
+    middleware = _get_ws_detection_middleware(clone)
+    assert middleware is not original
+    assert middleware.config is clone
+    assert _get_ws_detection_middleware(clone) is middleware
+    assert _get_ws_detection_middleware(config) is original
+    assert original.config is config
