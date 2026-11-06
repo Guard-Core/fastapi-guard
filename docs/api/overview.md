@@ -157,6 +157,9 @@ async def initialize(self) -> None:
             await self.geo_ip_handler.initialize_redis(self.redis_handler)
 ```
 
+!!! note "Per-app accessor: `cloud_handler_for`"
+    `cloud_handler` is the module-level singleton. It serves the first app built in the process, and any later app that shares its Redis prefix or has no Redis. An app on its own Redis prefix gets a separate cloud manager, and the engine resolves the manager of the app in flight with `cloud_handler_for(config)` on every request. Use the singleton for a single-app process, or to read the shared provider ranges. When a process builds more than one config (an app factory, a reload, tests), call `cloud_handler_for(config)` with the config of the app you mean, so you never talk to another app's manager. It is public, is not re-exported by this package, and is imported from `guard_core.handlers.cloud_handler`: `from guard_core.handlers.cloud_handler import cloud_handler_for`.
+
 ___
 
 Security Decorators
