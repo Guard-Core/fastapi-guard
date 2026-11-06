@@ -1,7 +1,7 @@
 import importlib
 import os
 import sys
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator, Iterator
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -19,6 +19,7 @@ from pytest import TempPathFactory
 
 from guard._middleware_state import _STATE_REGISTRY, clear_state_registry
 from guard.middleware import SecurityMiddleware
+from tests import network_guard, thread_guard
 from tests.redis_isolation import (
     REDIS_PREFIX,
     REDIS_URL,
@@ -27,6 +28,9 @@ from tests.redis_isolation import (
     refuse_connections_to_the_default_redis_port,
     refused_connections,
 )
+
+network_guard.install()
+thread_guard.install()
 
 point_security_config_defaults_at_the_test_redis()
 
@@ -265,3 +269,19 @@ def clean_rate_limiter() -> None:
 
     with _managers_lock:
         _managers.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_outbound_network() -> Iterator[None]:
+    network_guard.reset()
+    yield
+    violations = network_guard.drain()
+    assert not violations, "test reached the network:\n" + "\n".join(violations)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    thread_guard.stop_the_shared_regex_pools()
+    leaked = thread_guard.leaked_threads()
+    if leaked:
+        sys.stderr.write(f"\nthreads the tests left running: {leaked}\n")
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
