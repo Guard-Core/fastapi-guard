@@ -16,8 +16,9 @@ def parked_thread() -> Iterator[threading.Event]:
     thread.join()
 
 
+@pytest.mark.usefixtures("parked_thread")
 def test_a_thread_started_by_a_test_and_still_alive_is_named(
-    parked_thread: threading.Event, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(thread_guard, "_GRACE_SECONDS", 0.0)
     assert "wp473-parked (daemon=False)" in thread_guard.leaked_threads()
