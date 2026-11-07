@@ -51,6 +51,7 @@ from starlette.responses import StreamingResponse
 from starlette.routing import get_route_path
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from guard._lifespan_warm import warm_before_startup_complete
 from guard._response_headers import (
     merge_vary,
     with_cors_headers,
@@ -249,6 +250,10 @@ class PureASGISecurityMiddleware:
         self._engine = SecurityMiddleware(_NullApp(), config=config)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "lifespan":
+            send = warm_before_startup_complete(
+                send, lambda: self._engine._warm_on_lifespan_startup(scope.get("app"))
+            )
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
