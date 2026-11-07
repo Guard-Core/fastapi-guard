@@ -5,7 +5,7 @@ import asyncio
 import socket
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, MutableMapping
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
@@ -46,7 +46,7 @@ def _config(url: str = REDIS_URL, **overrides: Any) -> SecurityConfig:
     return SecurityConfig(**settings)
 
 
-def _app(middleware_class: type, config: SecurityConfig, **kwargs: Any) -> FastAPI:
+def _app(middleware_class: Any, config: SecurityConfig, **kwargs: Any) -> FastAPI:
     app = FastAPI(**kwargs)
     app.add_middleware(middleware_class, config=config)
 
@@ -60,12 +60,12 @@ def _app(middleware_class: type, config: SecurityConfig, **kwargs: Any) -> FastA
 class Lifespan:
     def __init__(self, app: FastAPI) -> None:
         self.app = app
-        self.sent: list[dict[str, Any]] = []
+        self.sent: list[MutableMapping[str, Any]] = []
         self.task: asyncio.Task[None] | None = None
         self._inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        self._outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._outbox: asyncio.Queue[MutableMapping[str, Any]] = asyncio.Queue()
 
-    async def _send(self, message: dict[str, Any]) -> None:
+    async def _send(self, message: MutableMapping[str, Any]) -> None:
         self.sent.append(message)
         await self._outbox.put(message)
 
@@ -410,18 +410,17 @@ def _open_the_reconnect_window(config: SecurityConfig) -> None:
 async def _blocked_background_attempt() -> AsyncIterator[asyncio.Event]:
     release = asyncio.Event()
     entered = asyncio.Event()
-    original = RedisManager._attempt_in_background
 
     async def blocked(self: RedisManager, url: str) -> None:
         entered.set()
         await release.wait()
 
-    RedisManager._attempt_in_background = blocked  # type: ignore[method-assign]
-    try:
-        yield entered
-    finally:
-        release.set()
-        RedisManager._attempt_in_background = original  # type: ignore[method-assign]
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(RedisManager, "_attempt_in_background", blocked, raising=False)
+        try:
+            yield entered
+        finally:
+            release.set()
 
 
 @needs_background_reconnect
