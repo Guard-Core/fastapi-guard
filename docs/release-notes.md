@@ -89,6 +89,8 @@ Unreleased
 
 - **Fixed (docs)** - **The docs state how a dynamic rule combines with the config, and what `passive_mode` does for a client with no address.** A dynamic rule adds to your configuration and never wipes it: blocked countries, blocked cloud providers and blocked user agents are added to your static lists, `whitelist_countries` is replaced only when the rule's value is non-empty and valid, and `endpoint_rate_limits` merge per endpoint (the rule's value wins for the endpoints it names, your static limits stay for the rest). A request or WebSocket handshake from a client with no address is refused under `fail_secure` (the default) and logged and admitted under `passive_mode`; the pages that said it passes through or is refused regardless are corrected.
 
+- **Fixed** - **A response a custom hook returns without a `Content-Type` is served as `text/plain; charset=utf-8` (LEDGER 6.581, D-252).** `unwrap_response` handed the framework default type (`text/html`, or a sniffed one) to a foreign `GuardResponse` that named none, so a `custom_request_check` response that echoes request text was a reflected XSS. The unwrapped response now carries `text/plain; charset=utf-8` when no header named `Content-Type` in any case is present; a `Content-Type` the hook sets, in any case, is kept as it is. Behavior change for a hook that returned HTML or JSON without naming the type: it now has to set `Content-Type` itself.
+
 ___
 
 v8.1.2 (2026-10-17)
