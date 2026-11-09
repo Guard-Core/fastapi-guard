@@ -23,7 +23,19 @@ def _app_with_health_route(config: SecurityConfig, **fastapi_kwargs: Any) -> Fas
     return app
 
 
-def test_warns_when_lazy_init_false_and_no_lifespan_wired(
+def test_warns_when_lazy_init_false_and_no_lifespan_runs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = SecurityConfig(enable_redis=False, lazy_init=False)
+    app = _app_with_health_route(config)
+
+    with caplog.at_level(logging.WARNING):
+        TestClient(app, client=("127.0.0.1", 12345)).get("/health")
+
+    assert any(WARNING_SUBSTRING in r.message for r in caplog.records)
+
+
+def test_no_warning_when_the_lifespan_runs_without_a_guard_hook(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = SecurityConfig(enable_redis=False, lazy_init=False)
@@ -33,7 +45,7 @@ def test_warns_when_lazy_init_false_and_no_lifespan_wired(
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             client.get("/health")
 
-    assert any(WARNING_SUBSTRING in r.message for r in caplog.records)
+    assert not any(WARNING_SUBSTRING in r.message for r in caplog.records)
 
 
 def test_no_warning_when_lazy_init_true(caplog: pytest.LogCaptureFixture) -> None:

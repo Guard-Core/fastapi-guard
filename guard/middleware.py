@@ -39,8 +39,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 from starlette.routing import Match, Mount, get_route_path
 from starlette.staticfiles import StaticFiles
-from starlette.types import ASGIApp, Scope
+from starlette.types import ASGIApp, Receive, Scope, Send
 
+from guard._lifespan_warm import warm_before_startup_complete
 from guard._response_headers import merge_vary
 from guard._route_gate_host import (
     hold_route_gate_host,
@@ -203,6 +204,18 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         self._cors_handler: CorsHandler | None = (
             CorsHandler(config) if config.enable_cors else None
         )
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "lifespan":
+            send = warm_before_startup_complete(
+                send, lambda: self._warm_on_lifespan_startup(scope.get("app"))
+            )
+        await super().__call__(scope, receive, send)
+
+    async def _warm_on_lifespan_startup(self, app: object) -> None:
+        from guard.lifespan import _warm_middleware_or_adopt
+
+        await _warm_middleware_or_adopt(self, app)
 
     def _is_initialized(self) -> bool:
         return self._initialized
@@ -911,7 +924,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         await self.rate_limit_handler.reset()
 
     async def initialize(self) -> None:
-        self._build_security_pipeline()
+        if self.security_pipeline is None:
+            self._build_security_pipeline()
 
         self.handler_initializer.guard_decorator = self.guard_decorator
 

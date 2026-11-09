@@ -681,9 +681,6 @@ async def test_guard_websocket_reuses_the_middlewares_redis_manager(
     )
 
     with TestClient(app, client=("127.0.0.1", 12345)) as client:
-        assert client.portal is not None
-        client.portal.call(RedisManager(config).initialize)
-
         with client.websocket_connect("/ws") as websocket:
             assert websocket.receive_text() == "connected"
 

@@ -105,10 +105,12 @@ ___
 Eager initialization with FastAPI lifespan
 ------------------------------------------
 
-!!! warning "`lazy_init=False` alone does not give you boot-time initialization"
-    Without lifespan wiring, fastapi-guard initializes lazily on the **first request** - the Redis connection, cloud-IP fetches, pipeline build, and agent / OTEL / Logfire startup all happen there, no matter how `SecurityConfig.lazy_init` is set. `lazy_init` only controls whether that initialization (whenever it happens) awaits cloud-IP/geo-IP warmup inline or backgrounds it - see [`lazy_init`](configuration/security-config.md#redis-settings). Getting initialization to run at ASGI startup instead of on the first request requires wiring one of the three hooks below.
+!!! info "Both middleware classes warm themselves on ASGI startup"
+    `SecurityMiddleware` and `PureASGISecurityMiddleware` initialize the engine when the server runs the ASGI lifespan startup: the Redis connection, cloud-IP fetches, pipeline build, and agent / OTEL / Logfire startup happen once at boot, after your own startup code has run and before the server accepts connections. There is no setting for it and no opt-out. A Redis error never fails the boot: startup completes, and with `redis_fail_open=True` requests are served without Redis while the engine reconnects in the background, with `redis_fail_open=False` they get 503 until Redis is reachable. A misconfiguration with `fail_on_misconfiguration=True` (the default) stops the boot instead of failing the first request.
 
-Without any of them, the first caller pays the full initialization cost, and a middleware that then reports itself as uninitialized on that first request is expected, not a bug.
+A server that sends no lifespan messages (a test client that does not enter the app, `uvicorn --lifespan off`) initializes lazily on the **first request** - the Redis connection, cloud-IP fetches, pipeline build, and agent / OTEL / Logfire startup all happen there, no matter how `SecurityConfig.lazy_init` is set. `lazy_init` only controls whether that initialization (whenever it happens) awaits cloud-IP/geo-IP warmup inline or backgrounds it - see [`lazy_init`](configuration/security-config.md#redis-settings). The first caller pays the full initialization cost, and a middleware that then reports itself as uninitialized on that first request is expected, not a bug.
+
+`guard_lifespan`, `make_lifespan` and `guard_startup` still work and are still needed to release the Redis hold at shutdown or when a host framework owns the startup hook. An app that wires one of them and also runs the middleware warm initializes exactly once: the second warm finds the registered state and adopts it.
 
 You own the app: `guard_lifespan`
 ----------------------------------
