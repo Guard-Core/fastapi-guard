@@ -143,6 +143,11 @@ async def test_fail_open_app_started_while_redis_was_down_uses_redis_once_back(
 
         forwarder.on()
         await asyncio.sleep(0.3)
+        assert (await client.get("/h")).status_code == 200
+        deadline = time.monotonic() + 2
+        while keys_under(prefix) == 0 and time.monotonic() < deadline:
+            assert (await client.get("/h")).status_code == 200
+            await asyncio.sleep(0.05)
         for _ in range(3):
             assert (await client.get("/h")).status_code == 200
 

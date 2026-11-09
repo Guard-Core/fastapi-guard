@@ -60,7 +60,13 @@ def test_next_request_succeeds_once_redis_initialization_recovers(
         monkeypatch.setattr(RedisManager, "initialize", _fake_initialize)
         _wait_out_the_first_reconnect_window()
 
+        trigger = client.get("/")
+        assert trigger.status_code == 503
+        deadline = time.monotonic() + 2
         second = client.get("/")
+        while second.status_code != 200 and time.monotonic() < deadline:
+            time.sleep(0.05)
+            second = client.get("/")
         assert second.status_code == 200
 
         assert client.portal is not None

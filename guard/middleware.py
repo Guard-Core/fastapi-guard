@@ -924,7 +924,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         await self.rate_limit_handler.reset()
 
     async def initialize(self) -> None:
-        self._build_security_pipeline()
+        if self.security_pipeline is None:
+            self._build_security_pipeline()
 
         self.handler_initializer.guard_decorator = self.guard_decorator
 

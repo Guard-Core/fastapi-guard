@@ -126,8 +126,10 @@ async def _warm_middleware_or_adopt(
         await middleware.initialize()
     except GuardRedisError as e:
         middleware.logger.error(
-            "Redis unavailable during startup initialization: %s; the first "
-            "request will retry and return 503 until Redis is reachable",
+            "Redis unavailable during startup initialization: %s; startup "
+            "continues. With redis_fail_open=True requests are served without "
+            "Redis and the engine reconnects in the background; with "
+            "redis_fail_open=False requests get 503 until Redis is reachable",
             e,
         )
         return

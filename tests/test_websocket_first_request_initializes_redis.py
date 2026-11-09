@@ -94,6 +94,22 @@ def _refusal(client: TestClient) -> WebSocketDisconnect:
     return refused.value
 
 
+def _connect_once_the_background_attempt_lands(client: TestClient) -> None:
+    """The call that finds the window open starts the reconnect attempt in the
+    background and is refused; a later call finds the connection it made."""
+    assert _refusal(client).code == WS_CLOSE_EMERGENCY_MODE.code
+    deadline = time.monotonic() + 2
+    while True:
+        try:
+            with client.websocket_connect("/ws") as websocket:
+                assert websocket.receive_text() == "connected"
+            return
+        except WebSocketDisconnect:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.05)
+
+
 def test_websocket_as_first_request_writes_its_rate_key_to_redis(
     make_client: ClientFactory,
 ) -> None:
@@ -123,8 +139,7 @@ def test_unreachable_redis_refuses_handshake_and_http_then_recovers(
 
     config.redis_url = REDIS_URL
     _wait_out_the_first_reconnect_window()
-    with client.websocket_connect("/ws") as websocket:
-        assert websocket.receive_text() == "connected"
+    _connect_once_the_background_attempt_lands(client)
     reader = redis.Redis.from_url(REDIS_URL)
     for key in reader.scan_iter(match=f"{config.redis_prefix}*"):
         reader.delete(key)
@@ -170,8 +185,7 @@ def test_refused_cold_handshakes_construct_the_middleware_at_most_once(
     _refusal(client)
     config.redis_url = REDIS_URL
     _wait_out_the_first_reconnect_window()
-    with client.websocket_connect("/ws") as websocket:
-        assert websocket.receive_text() == "connected"
+    _connect_once_the_background_attempt_lands(client)
 
     assert len(built) <= 1
     reader = redis.Redis.from_url(REDIS_URL)

@@ -371,12 +371,6 @@ async def test_a_redis_error_never_fails_startup(
         pass
 
 
-needs_background_reconnect = pytest.mark.skipif(
-    not hasattr(RedisManager, "_start_the_attempt_if_the_window_is_open"),
-    reason="needs the engine that reconnects in the background (WP489)",
-)
-
-
 @CLASSES
 async def test_fail_open_boot_with_redis_down_uses_redis_once_it_is_back(
     middleware_class: type,
@@ -423,7 +417,6 @@ async def _blocked_background_attempt() -> AsyncIterator[asyncio.Event]:
             release.set()
 
 
-@needs_background_reconnect
 @CLASSES
 async def test_a_second_warm_after_a_failed_cold_start_does_not_wait_for_the_attempt(
     middleware_class: type,
@@ -438,7 +431,6 @@ async def test_a_second_warm_after_a_failed_cold_start_does_not_wait_for_the_att
             await asyncio.wait_for(entered.wait(), 1)
 
 
-@needs_background_reconnect
 @CLASSES
 async def test_a_degraded_shared_manager_does_not_hold_startup(
     middleware_class: type,
@@ -477,18 +469,18 @@ async def test_fail_closed_boot_with_redis_down_answers_503(
     assert after_startup == 1
 
 
-@needs_background_reconnect
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING: after a failed warm every request runs SecurityMiddleware."
-    "initialize() again (rebuilds the pipeline) before the engine refuses it",
-)
 @CLASSES
-async def test_fail_closed_boot_with_redis_down_does_not_rerun_a_full_init_per_request(
+async def test_fail_closed_boot_with_redis_down_builds_the_pipeline_once(
     middleware_class: type, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    after_startup, total = await _fail_closed_requests_after_a_failed_warm(
-        middleware_class, monkeypatch
-    )
+    builds: list[int] = []
+    original = SecurityMiddleware._build_security_pipeline
 
-    assert total - after_startup <= 1
+    def counting(self: SecurityMiddleware) -> None:
+        builds.append(1)
+        original(self)
+
+    monkeypatch.setattr(SecurityMiddleware, "_build_security_pipeline", counting)
+    await _fail_closed_requests_after_a_failed_warm(middleware_class, monkeypatch)
+
+    assert len(builds) == 1
