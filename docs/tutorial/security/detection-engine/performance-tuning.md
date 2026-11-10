@@ -26,14 +26,17 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 patterns = sus_patterns_manager_for(security_config)
 
 # Get comprehensive performance statistics
+# None until the app has handled its first request,
+# which is when the detection engine is configured
 stats = await patterns.get_performance_stats()
 
-# Key metrics to monitor
-print(f"Average execution time: {stats['summary']['avg_execution_time']}s")
-print(f"Timeout rate: {stats['summary']['timeout_rate'] * 100}%")
-print(f"Match rate: {stats['summary']['match_rate'] * 100}%")
-print(f"Slow patterns: {len(stats['slow_patterns'])}")
-print(f"Problematic patterns: {len(stats['problematic_patterns'])}")
+if stats is not None:
+    # Key metrics to monitor
+    print(f"Average execution time: {stats['summary']['avg_execution_time']}s")
+    print(f"Timeout rate: {stats['summary']['timeout_rate'] * 100}%")
+    print(f"Match rate: {stats['summary']['match_rate'] * 100}%")
+    print(f"Slow patterns: {len(stats['slow_patterns'])}")
+    print(f"Problematic patterns: {len(stats['problematic_patterns'])}")
 ```
 
 ### Performance Benchmarks
@@ -57,7 +60,9 @@ These are targets for your deployment, not engine guarantees. For scale, the eng
 
 ```python
 # Get patterns exceeding threshold
-slow_patterns = (await patterns.get_performance_stats())["slow_patterns"]
+# None until the app has handled its first request,
+# which is when the detection engine is configured
+slow_patterns = ((await patterns.get_performance_stats()) or {}).get("slow_patterns", [])
 
 for pattern_info in slow_patterns:
     pattern = pattern_info["pattern"]
@@ -239,19 +244,22 @@ from datetime import datetime
 
 async def monitor_performance():
     while True:
+        # None until the app has handled its first request,
+        # which is when the detection engine is configured
         stats = await patterns.get_performance_stats()
 
-        # Alert on performance degradation
-        if stats["summary"]["avg_execution_time"] > 0.05:
-            logger.warning(
-                f"Performance degradation detected: "
-                f"{stats['summary']['avg_execution_time']}s average"
-            )
+        if stats is not None:
+            # Alert on performance degradation
+            if stats["summary"]["avg_execution_time"] > 0.05:
+                logger.warning(
+                    f"Performance degradation detected: "
+                    f"{stats['summary']['avg_execution_time']}s average"
+                )
 
-        # Check for anomalies
-        anomalies = stats["problematic_patterns"]
-        if anomalies:
-            logger.error(f"Pattern anomalies detected: {len(anomalies)}")
+            # Check for anomalies
+            anomalies = stats["problematic_patterns"]
+            if anomalies:
+                logger.error(f"Pattern anomalies detected: {len(anomalies)}")
 
         await asyncio.sleep(60)  # Check every minute
 ```
@@ -262,8 +270,12 @@ async def monitor_performance():
 # Create performance metrics endpoint
 @app.get("/metrics/detection-engine")
 async def get_detection_metrics():
+    # None until the app has handled its first request,
+    # which is when the detection engine is configured
     stats = await patterns.get_performance_stats()
 
+    if stats is None:
+        return {}
     return {
         "performance": {
             "average_execution_ms": stats["summary"]["avg_execution_time"] * 1000,
@@ -286,7 +298,9 @@ async def get_detection_metrics():
 
 ```python
 # 1. Check for runaway patterns
-problematic = (await patterns.get_performance_stats())["problematic_patterns"]
+# None until the app has handled its first request,
+# which is when the detection engine is configured
+problematic = ((await patterns.get_performance_stats()) or {}).get("problematic_patterns", [])
 for pattern in problematic:
     if pattern["timeout_rate"] > 0.05:
         # Remove or fix pattern
@@ -360,20 +374,23 @@ else:
 ```python
 # Weekly pattern review
 async def audit_patterns():
+    # None until the app has handled its first request,
+    # which is when the detection engine is configured
     stats = await patterns.get_performance_stats()
 
-    # Remove ineffective patterns
-    for pattern in stats["all_patterns"]:
-        if pattern["match_rate"] < 0.0001 and pattern["age_days"] > 30:
-            logger.info(f"Removing ineffective pattern: {pattern['pattern']}")
-            await patterns.remove_pattern(pattern["pattern"])
+    if stats is not None:
+        # Remove ineffective patterns
+        for pattern in stats["all_patterns"]:
+            if pattern["match_rate"] < 0.0001 and pattern["age_days"] > 30:
+                logger.info(f"Removing ineffective pattern: {pattern['pattern']}")
+                await patterns.remove_pattern(pattern["pattern"])
 
-    # Optimize slow patterns
-    for pattern in stats["slow_patterns"]:
-        optimized = optimize_pattern(pattern["pattern"])
-        if optimized != pattern["pattern"]:
-            await patterns.remove_pattern(pattern["pattern"])
-            await patterns.add_pattern(optimized, custom=True)
+        # Optimize slow patterns
+        for pattern in stats["slow_patterns"]:
+            optimized = optimize_pattern(pattern["pattern"])
+            if optimized != pattern["pattern"]:
+                await patterns.remove_pattern(pattern["pattern"])
+                await patterns.add_pattern(optimized, custom=True)
 ```
 
 ### 2. Load Testing
