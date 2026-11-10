@@ -665,3 +665,17 @@ async def test_second_usage_rules_call_on_one_request_records_nothing_more() -> 
     assert recorded_hits() == hits_after_one_call
     assert first is None
     assert second is None
+
+
+@pytest.mark.parametrize(
+    ("hour", "allowed"), [(3, False), (10, True), (20, False)], ids=["3", "10", "20"]
+)
+async def test_time_window_single_digit_hour_bound_is_compared_as_time(
+    hour: int, allowed: bool
+) -> None:
+    middleware = SecurityMiddleware(FastAPI(), config=SecurityConfig())
+
+    with patch("guard_core.core.validation.validator.datetime") as mock_datetime:
+        mock_datetime.now.return_value = datetime(2026, 1, 1, hour, 0)
+        result = await middleware._check_time_window({"start": "9:00", "end": "17:00"})
+    assert result is allowed
