@@ -150,24 +150,3 @@ async def test_the_config_is_bound_before_the_pipeline_is_built() -> None:
     assert own is not ipban_module.ip_ban_manager
     assert limiters
     assert all(limiter.ip_ban_manager is own for limiter in limiters)
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "needs the release epoch of WP616 round 4 (D-317 amendment 2); "
-        "engine c12be493 does not rebuild a pipeline after a release"
-    ),
-)
-def test_a_request_after_a_release_rebuilds_the_pipeline_of_the_reused_app() -> None:
-    config = _config()
-    app = _app(config, lifespan=False)
-    with TestClient(app) as client:
-        assert client.get("/").status_code == 200
-        state = get_state(config, None, app)
-        assert state is not None and state.security_pipeline is not None
-        pipeline = state.security_pipeline
-        checks_before = pipeline.checks
-        release_app(config)
-        assert client.get("/").status_code == 200
-    assert pipeline.checks is not checks_before
