@@ -47,6 +47,13 @@ def _default_ban_manager_serves_a_new_app() -> bool:
     return ip_ban_manager_for(new_app_config, bind=True) is ipban_module.ip_ban_manager
 
 
+def _default_ban_manager_serves_a_new_app_and_releases_the_probe() -> bool:
+    probe = _config()
+    served = ip_ban_manager_for(probe, bind=True) is ipban_module.ip_ban_manager
+    release_app(probe)
+    return served
+
+
 def _default_ban_manager_serves_a_new_app_on(prefix: str) -> bool:
     return ip_ban_manager_for(_config(prefix), bind=True) is ipban_module.ip_ban_manager
 
@@ -102,10 +109,14 @@ def test_the_released_apps_state_is_dropped_from_the_registry() -> None:
     assert get_state(config, None, app) is None
 
 
-def test_two_hundred_released_apps_leave_no_security_config() -> None:
+@pytest.mark.usefixtures("collector_off")
+def test_two_hundred_released_apps_leave_no_config_and_hand_back_the_default() -> None:
     before = _live_security_configs()
     for _ in range(_APPS):
         _serve_once(_app(_config()))
+        assert _default_ban_manager_serves_a_new_app_and_releases_the_probe(), (
+            "the default did not serve a new app after the previous app was released"
+        )
     assert _live_security_configs() - before == 0
 
 
