@@ -825,11 +825,11 @@ async def test_cloud_ip_blocking_with_refresh() -> None:
     middleware = SecurityMiddleware(app, config=config)
     middleware.last_cloud_ip_refresh = int(time.time() - 3700)
 
+    # The first app after a release holds the module-level manager, and an app
+    # without Redis refreshes it through `refresh` (D-317).
     mock_refresh = AsyncMock()
     with (
-        patch.object(
-            cloud_handler_for(config, bind=True), "refresh_async", mock_refresh
-        ),
+        patch.object(cloud_handler_for(config, bind=True), "refresh", mock_refresh),
         patch.object(
             cloud_handler_for(config, bind=True), "is_cloud_ip", return_value=False
         ),

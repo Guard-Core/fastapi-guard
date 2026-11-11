@@ -67,26 +67,26 @@ def test_same_config_shares_state_across_instances() -> None:
     with TestClient(app1, client=("127.0.0.1", 12345)) as client:
         client.get("/health")
 
-    state = get_state(config)
-    assert state is not None
-    assert state.security_pipeline is not None
+        state = get_state(config)
+        assert state is not None
+        assert state.security_pipeline is not None
 
-    app2 = FastAPI(lifespan=guard_lifespan)
-    app2.add_middleware(SecurityMiddleware, config=config)
+        app2 = FastAPI(lifespan=guard_lifespan)
+        app2.add_middleware(SecurityMiddleware, config=config)
 
-    @app2.get("/health")
-    async def h2() -> dict[str, bool]:
-        return {"ok": True}
+        @app2.get("/health")
+        async def h2() -> dict[str, bool]:
+            return {"ok": True}
 
-    state_before = get_state(config)
-    with TestClient(app2, client=("127.0.0.1", 12345)) as client:
-        client.get("/health")
-    state_after = get_state(config)
+        state_before = get_state(config)
+        with TestClient(app2, client=("127.0.0.1", 12345)) as client2:
+            client2.get("/health")
+            state_after = get_state(config)
 
-    assert state_before is state_after
-    assert state_before is not None
-    assert state_after is not None
-    assert state_before.security_pipeline is state_after.security_pipeline
+        assert state_before is state_after
+        assert state_before is not None
+        assert state_after is not None
+        assert state_before.security_pipeline is state_after.security_pipeline
 
 
 def test_different_configs_get_different_state_entries() -> None:
@@ -107,16 +107,18 @@ def test_different_configs_get_different_state_entries() -> None:
     async def hb() -> dict[str, bool]:
         return {"ok": True}
 
-    with TestClient(app_a, client=("127.0.0.1", 12345)) as ca:
+    with (
+        TestClient(app_a, client=("127.0.0.1", 12345)) as ca,
+        TestClient(app_b, client=("127.0.0.1", 12345)) as cb,
+    ):
         ca.get("/health")
-    with TestClient(app_b, client=("127.0.0.1", 12345)) as cb:
         cb.get("/health")
 
-    state_a = get_state(config_a)
-    state_b = get_state(config_b)
-    assert state_a is not None
-    assert state_b is not None
-    assert state_a is not state_b
+        state_a = get_state(config_a)
+        state_b = get_state(config_b)
+        assert state_a is not None
+        assert state_b is not None
+        assert state_a is not state_b
 
 
 def test_composite_handler_start_called_exactly_once_per_config() -> None:
@@ -198,9 +200,9 @@ def test_clear_state_registry_empties_it() -> None:
     with TestClient(app, client=("127.0.0.1", 12345)) as client:
         client.get("/health")
 
-    assert get_state(config) is not None
-    clear_state_registry()
-    assert get_state(config) is None
+        assert get_state(config) is not None
+        clear_state_registry()
+        assert get_state(config) is None
 
 
 def test_make_lifespan_also_populates_registry() -> None:
@@ -220,7 +222,7 @@ def test_make_lifespan_also_populates_registry() -> None:
     with TestClient(app, client=("127.0.0.1", 12345)) as client:
         client.get("/health")
 
-    assert get_state(config) is not None
+        assert get_state(config) is not None
 
 
 def test_adopt_warm_state_prefers_composite_handler() -> None:
@@ -311,14 +313,14 @@ def test_warm_adoption_uses_same_object_references() -> None:
     with TestClient(app, client=("127.0.0.1", 12345)) as client:
         client.get("/health")
 
-    state = get_state(config)
-    assert state is not None
-    assert state.security_pipeline is not None
-    assert state.handler_initializer is not None
-    assert state.validator is not None
-    assert state.response_factory is not None
-    assert state.bypass_handler is not None
-    assert state.behavioral_processor is not None
+        state = get_state(config)
+        assert state is not None
+        assert state.security_pipeline is not None
+        assert state.handler_initializer is not None
+        assert state.validator is not None
+        assert state.response_factory is not None
+        assert state.bypass_handler is not None
+        assert state.behavioral_processor is not None
 
 
 async def test_guard_startup_initializes_with_no_lifespan_wired() -> None:

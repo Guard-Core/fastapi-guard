@@ -2,13 +2,19 @@ from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import TypeVar, overload
 
+from guard_core import release_app
 from guard_core._utils.config_registry import REDIS_HANDLERS
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 
 from guard._decorator_adoption import resolve_app_state_decorator
-from guard._middleware_state import MiddlewareState, get_state, register_state
+from guard._middleware_state import (
+    MiddlewareState,
+    drop_states_of,
+    get_state,
+    register_state,
+)
 from guard.middleware import SecurityMiddleware
 
 AppT = TypeVar("AppT")
@@ -143,6 +149,14 @@ async def _release_redis_hold(app: object) -> None:
         await handler.close()
 
 
+def _release_the_app(app: object) -> None:
+    config = _find_security_config(app)
+    if config is None:
+        return
+    release_app(config)
+    drop_states_of(config, app)
+
+
 @asynccontextmanager
 async def guard_lifespan(app: object) -> AsyncIterator[None]:
     middleware = _find_security_middleware(app)
@@ -152,6 +166,7 @@ async def guard_lifespan(app: object) -> AsyncIterator[None]:
         yield
     finally:
         await _release_redis_hold(app)
+        _release_the_app(app)
 
 
 async def guard_startup(app: object) -> None:
@@ -199,5 +214,6 @@ def make_lifespan(
                 yield None
         finally:
             await _release_redis_hold(app)
+            _release_the_app(app)
 
     return combined

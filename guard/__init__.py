@@ -22,6 +22,7 @@ from guard_core import (
     endpoint_rate_limit_key_problems as endpoint_rate_limit_key_problems,
     ip_ban_manager as ip_ban_manager,
     is_ip_allowed as is_ip_allowed,
+    release_app as release_app,
     security_headers_manager as security_headers_manager,
     sus_patterns_handler as sus_patterns_handler,
 )
