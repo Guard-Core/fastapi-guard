@@ -18,7 +18,7 @@ jobs:
     # A called workflow's jobs report as "ci-gate / <job>", so none of them can be mistaken for the required `ci` check.
     permissions:
       contents: read # check out the repository
-    uses: $/.github/workflows/ci.yml
+    uses: ./.github/workflows/ci.yml
     secrets:
       IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
 
