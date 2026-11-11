@@ -336,8 +336,11 @@ config = SecurityConfig(
 # 2. Clear old data periodically
 async def cleanup_task():
     while True:
-        await patterns._performance_monitor.clear_stats()
-        await patterns._compiler.clear_cache()
+        # Both are None until the app has handled its first request
+        if patterns._performance_monitor is not None:
+            await patterns._performance_monitor.clear_stats()
+        if patterns._compiler is not None:
+            await patterns._compiler.clear_cache()
         await asyncio.sleep(3600)  # Every hour
 
 
