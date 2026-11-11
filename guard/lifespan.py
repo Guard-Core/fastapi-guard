@@ -1,3 +1,4 @@
+import threading
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import TypeVar, overload
@@ -160,23 +161,28 @@ def _release_the_app(app: object) -> None:
 # Keyed by id(config): SecurityConfig is unhashable, so no WeakKeyDictionary. An id
 # is only held while a lifespan using that config runs, and every increment is paired
 # with a decrement in the same finally, so a recycled id cannot meet a stale entry.
+# The lock covers lifespans on loops in different threads (or a free-threaded build):
+# it is taken twice per app lifetime, never on the request path.
 _RUNNING_LIFESPANS: dict[int, int] = {}
+_RUNNING_LIFESPANS_LOCK = threading.Lock()
 
 
 def _enter_lifespan_of(config: SecurityConfig | None) -> None:
     if config is not None:
-        _RUNNING_LIFESPANS[id(config)] = _RUNNING_LIFESPANS.get(id(config), 0) + 1
+        with _RUNNING_LIFESPANS_LOCK:
+            _RUNNING_LIFESPANS[id(config)] = _RUNNING_LIFESPANS.get(id(config), 0) + 1
 
 
 def _is_last_lifespan_of(config: SecurityConfig | None) -> bool:
     if config is None:
         return True
-    remaining = _RUNNING_LIFESPANS[id(config)] - 1
-    if remaining:
-        _RUNNING_LIFESPANS[id(config)] = remaining
-        return False
-    del _RUNNING_LIFESPANS[id(config)]
-    return True
+    with _RUNNING_LIFESPANS_LOCK:
+        remaining = _RUNNING_LIFESPANS[id(config)] - 1
+        if remaining:
+            _RUNNING_LIFESPANS[id(config)] = remaining
+            return False
+        del _RUNNING_LIFESPANS[id(config)]
+        return True
 
 
 @asynccontextmanager

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import threading
 from collections.abc import Callable, Iterator
 from contextlib import AbstractAsyncContextManager
 
@@ -149,3 +150,46 @@ async def test_sequential_apps_on_one_config_do_not_share_state() -> None:
         second_state = get_state(config, None, second)
         assert second_state is not None
         assert second_state.security_pipeline is not first_state.security_pipeline
+
+
+def test_lifespans_on_loops_in_two_threads_release_a_shared_config_once_at_the_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A behaviour pin, not red/green: the unlocked count race is timing dependent."""
+    releases: list[object] = []
+    closes: list[object] = []
+
+    async def counting_close(app: object) -> None:
+        closes.append(app)
+
+    monkeypatch.setattr(lifespan_module, "_release_redis_hold", counting_close)
+    real_release = lifespan_module._release_the_app
+    monkeypatch.setattr(
+        lifespan_module,
+        "_release_the_app",
+        lambda app: (releases.append(app), real_release(app))[1],
+    )
+    shared = _config()
+    started = [threading.Event(), threading.Event()]
+    stop = [threading.Event(), threading.Event()]
+
+    def run(index: int) -> None:
+        async def serve() -> None:
+            async with guard_lifespan(_app(shared)):
+                started[index].set()
+                while not stop[index].is_set():
+                    await asyncio.sleep(0.01)
+
+        asyncio.run(serve())
+
+    threads = [threading.Thread(target=run, args=(i,)) for i in range(2)]
+    for thread in threads:
+        thread.start()
+    assert all(event.wait(10) for event in started)
+    stop[0].set()
+    threads[0].join(10)
+    assert releases == [] and closes == []
+    assert get_state(shared) is not None
+    stop[1].set()
+    threads[1].join(10)
+    assert len(releases) == 1 and len(closes) == 1
