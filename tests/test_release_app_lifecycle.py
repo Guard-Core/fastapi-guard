@@ -164,11 +164,12 @@ def test_lifespans_on_loops_in_two_threads_release_a_shared_config_once_at_the_e
 
     monkeypatch.setattr(lifespan_module, "_release_redis_hold", counting_close)
     real_release = lifespan_module._release_the_app
-    monkeypatch.setattr(
-        lifespan_module,
-        "_release_the_app",
-        lambda app: (releases.append(app), real_release(app))[1],
-    )
+
+    def recording_release(app: object) -> None:
+        releases.append(app)
+        real_release(app)
+
+    monkeypatch.setattr(lifespan_module, "_release_the_app", recording_release)
     shared = _config()
     started = [threading.Event(), threading.Event()]
     stop = [threading.Event(), threading.Event()]
