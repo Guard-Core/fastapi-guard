@@ -354,7 +354,9 @@ config.detection_compiler_timeout = 3.0
 # Monitor specific patterns
 # None until the app has handled its first request,
 # which is when the detection engine is configured
-slow_patterns = ((await patterns.get_performance_stats()) or {}).get("slow_patterns", [])
+slow_patterns = ((await patterns.get_performance_stats()) or {}).get(
+    "slow_patterns", []
+)
 ```
 
 ### Memory Usage

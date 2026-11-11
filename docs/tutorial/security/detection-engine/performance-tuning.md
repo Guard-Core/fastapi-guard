@@ -62,7 +62,9 @@ These are targets for your deployment, not engine guarantees. For scale, the eng
 # Get patterns exceeding threshold
 # None until the app has handled its first request,
 # which is when the detection engine is configured
-slow_patterns = ((await patterns.get_performance_stats()) or {}).get("slow_patterns", [])
+slow_patterns = ((await patterns.get_performance_stats()) or {}).get(
+    "slow_patterns", []
+)
 
 for pattern_info in slow_patterns:
     pattern = pattern_info["pattern"]
@@ -300,7 +302,9 @@ async def get_detection_metrics():
 # 1. Check for runaway patterns
 # None until the app has handled its first request,
 # which is when the detection engine is configured
-problematic = ((await patterns.get_performance_stats()) or {}).get("problematic_patterns", [])
+problematic = ((await patterns.get_performance_stats()) or {}).get(
+    "problematic_patterns", []
+)
 for pattern in problematic:
     if pattern["timeout_rate"] > 0.05:
         # Remove or fix pattern
