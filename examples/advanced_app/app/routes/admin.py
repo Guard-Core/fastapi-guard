@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Body
 from guard_core.handlers.cloud_handler import cloud_handler_for
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
+from guard_core.handlers.ratelimit_handler import RateLimitManager
 
 from app.models import MessageResponse, StatsResponse
 from app.security import guard, security_config
@@ -84,17 +85,19 @@ async def get_security_stats() -> StatsResponse:
     status_code=200,
     summary="Clear Security Caches",
     description=(
-        "Clears all security-related caches including rate limit counters, IP ban"
-        " lists,"
-        "and geo lookup cache. Restricted to localhost."
+        "Clears every IP ban (operator bans included) and every rate limit window"
+        " for this app's Redis prefix. Restricted to localhost."
     ),
     responses={403: {"description": "Not authorized (non-localhost IP)"}},
 )
 @guard.require_ip(whitelist=["127.0.0.1"])
 async def clear_security_cache() -> MessageResponse:
+    """Clears all bans and rate limit windows for this app's Redis prefix."""
+    await ip_ban_manager_for(security_config).reset()
+    await RateLimitManager(security_config).reset()
     return MessageResponse(
         message="Security caches cleared",
-        details={"cleared": ["rate_limit_cache", "ip_ban_cache", "geo_cache"]},
+        details={"cleared": ["ip_bans", "rate_limit_windows"]},
     )
 
 
