@@ -1,12 +1,15 @@
 import importlib
 import os
 import sys
-from collections.abc import AsyncGenerator, Generator, Iterator
+import weakref
+from collections.abc import AsyncGenerator, Callable, Generator, Iterator
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, Concatenate, NoReturn, ParamSpec
 
 import pytest
 from fastapi import FastAPI
+from guard_core import release_app
+from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.handlers import cloud_handler as cloud_handler_module
 from guard_core.handlers.cloud_handler import cloud_handler
 from guard_core.handlers.ipban_handler import reset_global_state
@@ -116,6 +119,43 @@ def _engine_default_redis_url_follows_redis_url() -> None:
     # is not where Redis lives inside the compose network.
     SecurityConfig.model_fields["redis_url"].default = REDIS_URL
     SecurityConfig.model_rebuild(force=True)
+
+
+_P = ParamSpec("_P")
+
+
+def _recording_the_config_it_binds(
+    original: Callable[Concatenate[HandlerInitializer, _P], None],
+    bound: list[weakref.ref[SecurityConfig]],
+) -> Callable[Concatenate[HandlerInitializer, _P], None]:
+    def initializer(
+        self: HandlerInitializer, *args: _P.args, **kwargs: _P.kwargs
+    ) -> None:
+        original(self, *args, **kwargs)
+        bound.append(weakref.ref(self.config))
+
+    return initializer
+
+
+@pytest.fixture(autouse=True)
+def _release_every_app_between_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[None]:
+    """HandlerInitializer binds an app's config to the engine's managers; a test
+    that built an app and never ran its lifespan leaves the config bound until
+    the collector frees it, so the next test could get the default or its own
+    managers depending on when the collector ran (D-317)."""
+    bound: list[weakref.ref[SecurityConfig]] = []
+    monkeypatch.setattr(
+        HandlerInitializer,
+        "__init__",
+        _recording_the_config_it_binds(HandlerInitializer.__init__, bound),
+    )
+    yield
+    for reference in bound:
+        config = reference()
+        if config is not None:
+            release_app(config)
 
 
 @pytest.fixture(autouse=True)

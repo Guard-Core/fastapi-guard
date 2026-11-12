@@ -1,14 +1,21 @@
+import threading
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import TypeVar, overload
 
+from guard_core import release_app
 from guard_core._utils.config_registry import REDIS_HANDLERS
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 
 from guard._decorator_adoption import resolve_app_state_decorator
-from guard._middleware_state import MiddlewareState, get_state, register_state
+from guard._middleware_state import (
+    MiddlewareState,
+    drop_states_of,
+    get_state,
+    register_state,
+)
 from guard.middleware import SecurityMiddleware
 
 AppT = TypeVar("AppT")
@@ -143,15 +150,65 @@ async def _release_redis_hold(app: object) -> None:
         await handler.close()
 
 
+def _release_the_app(app: object) -> None:
+    config = _find_security_config(app)
+    if config is None:
+        return
+    release_app(config)
+    drop_states_of(config, app)
+
+
+# Keyed by id(config): SecurityConfig is unhashable, so no WeakKeyDictionary. An id
+# is only held while a lifespan using that config runs, and every increment is paired
+# with a decrement in the same finally, so a recycled id cannot meet a stale entry.
+# The lock covers lifespans on loops in different threads (or a free-threaded build):
+# it is taken twice per app lifetime, never on the request path.
+_RUNNING_LIFESPANS: dict[int, int] = {}
+_RUNNING_LIFESPANS_LOCK = threading.Lock()
+
+
+def _enter_lifespan_of(config: SecurityConfig | None) -> None:
+    if config is not None:
+        with _RUNNING_LIFESPANS_LOCK:
+            _RUNNING_LIFESPANS[id(config)] = _RUNNING_LIFESPANS.get(id(config), 0) + 1
+
+
+def _is_last_lifespan_of(config: SecurityConfig | None) -> bool:
+    if config is None:
+        return True
+    with _RUNNING_LIFESPANS_LOCK:
+        remaining = _RUNNING_LIFESPANS[id(config)] - 1
+        if remaining:
+            _RUNNING_LIFESPANS[id(config)] = remaining
+            return False
+        del _RUNNING_LIFESPANS[id(config)]
+        return True
+
+
 @asynccontextmanager
-async def guard_lifespan(app: object) -> AsyncIterator[None]:
-    middleware = _find_security_middleware(app)
-    if middleware is not None:
-        await _warm_middleware_or_adopt(middleware, app)
+async def _guarded_app_lifetime(app: object) -> AsyncIterator[None]:
+    """Warm the app, then release it however the lifespan ends (a startup failure,
+    a cancellation, a normal shutdown, a close that raises). Apps sharing one config
+    release it only when the last of them stops."""
+    config = _find_security_config(app)
+    _enter_lifespan_of(config)
     try:
+        middleware = _find_security_middleware(app)
+        if middleware is not None:
+            await _warm_middleware_or_adopt(middleware, app)
         yield
     finally:
-        await _release_redis_hold(app)
+        if _is_last_lifespan_of(config):
+            try:
+                await _release_redis_hold(app)
+            finally:
+                _release_the_app(app)
+
+
+@asynccontextmanager
+async def guard_lifespan(app: object) -> AsyncIterator[None]:
+    async with _guarded_app_lifetime(app):
+        yield
 
 
 async def guard_startup(app: object) -> None:
@@ -188,16 +245,11 @@ def make_lifespan(
 ) -> Callable[[AppT], AbstractAsyncContextManager[Mapping[str, object] | None]]:
     @asynccontextmanager
     async def combined(app: AppT) -> AsyncIterator[Mapping[str, object] | None]:
-        middleware = _find_security_middleware(app)
-        if middleware is not None:
-            await _warm_middleware_or_adopt(middleware, app)
-        try:
+        async with _guarded_app_lifetime(app):
             if existing_lifespan is not None:
                 async with existing_lifespan(app) as state:
                     yield state
             else:
                 yield None
-        finally:
-            await _release_redis_hold(app)
 
     return combined

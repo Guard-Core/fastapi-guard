@@ -95,6 +95,15 @@ class _StateRegistry:
         store = self._store_of(owner) if owner is not None else None
         (self._ownerless if store is None else store)[key] = entry
 
+    def drop_config(self, config: object, owner: object) -> None:
+        stores = [self._ownerless]
+        own = getattr(owner, _STORE_ATTRIBUTE, None)
+        if own is not None:
+            stores.append(own)
+        for store in stores:
+            for key in [k for k, entry in store.items() if entry.config is config]:
+                del store[key]
+
     def values(self) -> list[MiddlewareState]:
         stores = [self._ownerless, *self._live_stores()]
         return [entry.state for store in stores for entry in store.values()]
@@ -129,6 +138,10 @@ def register_state(
     _STATE_REGISTRY.put(
         _state_key(config, decorator), _Entry(config, decorator, state), owner
     )
+
+
+def drop_states_of(config: object, owner: object) -> None:
+    _STATE_REGISTRY.drop_config(config, owner)
 
 
 def clear_state_registry() -> None:
