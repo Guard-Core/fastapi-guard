@@ -1386,10 +1386,8 @@ admin_router = APIRouter(prefix="/admin", tags=["Admin & Utilities"])
     status_code=200,
     summary="Unban IP Address",
     description=(
-        "Removes a specific IP address from the ban list. Restricted to localhost"
-        " access "
-        "only. The unban operation runs as a background task to avoid blocking the "
-        "response."
+        "Removes a specific IP address from the ban list and answers 400 when the "
+        "body is not an IP address. Restricted to localhost access only."
     ),
     responses={
         403: {"description": "Access denied, admin endpoint restricted to localhost"}
@@ -1400,10 +1398,15 @@ async def unban_ip_address(
     ip: Annotated[str, Body(description="IP address to unban")],
     background_tasks: BackgroundTasks,
 ) -> MessageResponse:
-    background_tasks.add_task(logger.info, f"Unbanning IP: {ip}")
+    try:
+        address = str(ip_address(ip.strip()))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Not an IP address") from None
+    await ip_ban_manager_for(security_config).unban_ip(address)
+    background_tasks.add_task(logger.info, f"Unbanning IP: {address}")
     return MessageResponse(
-        message=f"IP {ip} has been unbanned",
-        details={"action": "unban", "ip": ip},
+        message=f"IP {address} has been unbanned",
+        details={"action": "unban", "ip": address},
     )
 
 

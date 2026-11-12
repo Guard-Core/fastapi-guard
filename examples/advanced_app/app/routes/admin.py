@@ -1,7 +1,8 @@
 import logging
 from datetime import datetime, timezone
+from ipaddress import ip_address
 
-from fastapi import APIRouter, BackgroundTasks, Body
+from fastapi import APIRouter, BackgroundTasks, Body, HTTPException
 from guard_core.handlers.cloud_handler import cloud_handler_for
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.ratelimit_handler import RateLimitManager
@@ -30,12 +31,16 @@ async def unban_ip_address(
     ip: str = Body(...),
     background_tasks: BackgroundTasks = BackgroundTasks(),  # noqa: B008
 ) -> MessageResponse:
+    try:
+        address = str(ip_address(ip.strip()))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Not an IP address") from None
     # The module-level `ip_ban_manager` is the default app's. This app's own:
-    await ip_ban_manager_for(security_config).unban_ip(ip)
-    background_tasks.add_task(logger.info, f"Unbanning IP: {ip}")
+    await ip_ban_manager_for(security_config).unban_ip(address)
+    background_tasks.add_task(logger.info, f"Unbanning IP: {address}")
     return MessageResponse(
-        message=f"IP {ip} has been unbanned",
-        details={"action": "unban", "ip": ip},
+        message=f"IP {address} has been unbanned",
+        details={"action": "unban", "ip": address},
     )
 
 

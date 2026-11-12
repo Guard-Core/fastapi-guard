@@ -76,3 +76,32 @@ def test_clear_cache_route_stays_behind_the_localhost_gate(
     app, _ = example
     with TestClient(app, client=("203.0.113.5", 50000)) as client:
         assert client.post("/admin/clear-cache").status_code == 403
+
+
+def test_unban_route_lifts_the_ban_it_names(
+    example: tuple[FastAPI, SecurityConfig],
+) -> None:
+    app, config = example
+    assert config.redis_prefix != "fastapi_guard:", "set REDIS_PREFIX before the unban"
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        portal = client.portal
+        assert portal is not None
+        bans = ip_ban_manager_for(config)
+        portal.call(bans.ban_ip, BANNED_IP, 300, "test")
+        assert portal.call(bans.is_ip_banned, BANNED_IP)
+
+        response = client.post("/admin/unban-ip", json=BANNED_IP)
+
+        assert response.status_code == 200
+        assert not portal.call(bans.is_ip_banned, BANNED_IP)
+        assert response.json()["details"]["ip"] == BANNED_IP
+
+
+@pytest.mark.parametrize("garbage", ["not-an-ip", "203.0.113.0/24", "", "1.2.3.999"])
+def test_unban_route_refuses_input_that_is_not_an_ip(
+    example: tuple[FastAPI, SecurityConfig], garbage: str
+) -> None:
+    app, _ = example
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        assert client.post("/admin/unban-ip", json=garbage).status_code == 400
