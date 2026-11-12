@@ -4,6 +4,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
@@ -122,12 +123,16 @@ def test_emergency_switch_refuses_outsiders_and_keeps_the_admin(
     on = admin.put("/admin/emergency-mode", json=True)
     assert on.status_code == 200
     assert on.json()["details"]["emergency_mode"] is True
+    assert on.json()["details"]["added_to_emergency_whitelist"] == ["127.0.0.1"]
+    assert on.json()["details"]["emergency_whitelist"] == ["127.0.0.1"]
     assert config.emergency_mode is True
     assert outsider.get("/").status_code == 503
     assert admin.get("/").status_code == 200
 
     off = admin.put("/admin/emergency-mode", json=False)
     assert off.json()["details"]["emergency_mode"] is False
+    assert off.json()["details"]["removed_from_emergency_whitelist"] == ["127.0.0.1"]
+    assert config.emergency_whitelist == []
     assert outsider.get("/").status_code == 200
     assert admin.get("/").status_code == 200
 
@@ -143,12 +148,13 @@ def test_emergency_switch_refuses_a_body_that_is_not_a_boolean(
 
 
 def test_emergency_switch_defers_to_the_dashboard_when_dynamic_rules_are_on(
-    example: tuple[FastAPI, SecurityConfig],
+    example: tuple[FastAPI, SecurityConfig], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     app, config = example
-    config.agent_api_key = "test-key"
-    config.enable_agent = True
-    config.enable_dynamic_rules = True
+    monkeypatch.setattr("guard_agent.GuardAgentHandler", lambda config: AsyncMock())
+    monkeypatch.setattr(config, "agent_api_key", "test-key")
+    monkeypatch.setattr(config, "enable_agent", True)
+    monkeypatch.setattr(config, "enable_dynamic_rules", True)
     response = TestClient(app, client=LOCAL).put("/admin/emergency-mode", json=True)
     assert response.status_code == 409
     assert "dashboard" in response.text
@@ -176,3 +182,20 @@ def test_stats_come_from_the_engine_and_carry_no_invented_numbers(
         after
     )
     assert after["active_rules"]["rate_limit"] == config.rate_limit
+
+
+def test_emergency_switch_leaves_a_whitelist_it_did_not_extend_alone(
+    example: tuple[FastAPI, SecurityConfig], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, config = example
+    monkeypatch.setattr(config, "emergency_whitelist", ["127.0.0.1"])
+    admin = TestClient(app, client=LOCAL)
+
+    on_response = admin.put("/admin/emergency-mode", json=True)
+    assert on_response.status_code == 200, on_response.text
+    on = on_response.json()["details"]
+    off = admin.put("/admin/emergency-mode", json=False).json()["details"]
+
+    assert on["added_to_emergency_whitelist"] == []
+    assert off["removed_from_emergency_whitelist"] == []
+    assert config.emergency_whitelist == ["127.0.0.1"]
