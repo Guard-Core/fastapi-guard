@@ -444,7 +444,7 @@ Security Considerations
 ------------------------
 
 - **Header Injection Prevention**: All header values are validated against injection attacks, newlines, and excessive length
-- **CORS Security**: Wildcard origins (`*`) cannot be used with credentials to prevent security vulnerabilities
+- **CORS Security**: Wildcard origins (`*`) cannot be used with credentials: `SecurityConfig` refuses the combination when it is built (`fail_on_misconfiguration=True`), and with it `False` logs one WARNING and drops credentials
 - **Thread Safety**: SecurityHeadersManager uses thread-safe singleton pattern with double-checked locking
 - **Cache Security**: Cache keys are generated using SHA256 hashing to prevent cache poisoning attacks
 - **CSP Validation**: Unsafe directives like `'unsafe-inline'` and `'unsafe-eval'` trigger security warnings

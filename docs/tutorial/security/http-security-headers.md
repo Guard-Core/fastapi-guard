@@ -540,7 +540,7 @@ Security Best Practices
 ------------------------
 
 1. **Header Injection Prevention**: FastAPI Guard automatically validates all header values against injection attacks
-2. **CORS Security**: Wildcard origins (`*`) are automatically blocked when credentials are enabled
+2. **CORS Security**: Wildcard origins (`*`) with credentials enabled are refused when `SecurityConfig` is built (`fail_on_misconfiguration=True`, the 5.0.0 default); with it `False`, one WARNING is logged and credentials are dropped
 3. **Thread Safety**: The SecurityHeadersManager uses thread-safe patterns for production environments
 4. **Cache Security**: Secure cache key generation prevents cache poisoning attacks
 5. **Input Validation**: All header values are sanitized for newlines, control characters, and excessive length
