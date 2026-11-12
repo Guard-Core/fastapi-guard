@@ -333,16 +333,13 @@ config = SecurityConfig(
 )
 
 
-# 2. Clear old data periodically
-async def cleanup_task():
-    while True:
-        # Both are None until the app has handled its first request
-        if patterns._performance_monitor is not None:
-            await patterns._performance_monitor.clear_stats()
-        if patterns._compiler is not None:
-            await patterns._compiler.clear_cache()
-        await asyncio.sleep(3600)  # Every hour
-
+# 2. No cleanup loop is needed: the engine bounds both stores itself
+# - the compiled-pattern cache evicts its oldest entry past its size,
+#   which is detection_max_tracked_patterns, capped at 5000
+# - the performance monitor keeps at most detection_max_tracked_patterns
+#   patterns (capped at 5000) and detection_monitor_history_size recent
+#   metrics (between 100 and 10000), both in bounded deques
+# Lower those two SecurityConfig fields (step 1) to shrink the footprint
 
 # 3. Monitor memory usage
 import psutil
