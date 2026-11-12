@@ -40,6 +40,7 @@ Core Security Settings
 | `rate_limit` | int | 120 | Maximum requests per `rate_limit_window` |
 | `rate_limit_window` | int | 60 | Rate limiting time window (seconds) |
 | `enforce_https` | bool | False | Whether to enforce HTTPS connections |
+| `endpoint_rate_limits` | dict[str, tuple[int, int]] | `{}` | Per-endpoint `{path: (requests, window)}` limits; a limit follows the handler, not the path (see Endpoint Rate Limits below) |
 | `exclude_paths` | list[str] | `["/docs", "/redoc", "/openapi.json", "/openapi.yaml", "/favicon.ico", "/static"]` | Paths exempted from detection and behavioral tracking; IP bans, blacklists, blocked countries, blocked cloud providers, and rate limits still apply. Matched against the route-relative path (any ASGI `root_path` mount prefix stripped), the same path `endpoint_rate_limits` keys match against |
 
 Detection Engine Settings
@@ -121,6 +122,37 @@ add_status_route(app)  # GET /_guard/status
 Nothing is registered unless you call `add_status_route` yourself. The route is excluded from the OpenAPI schema by default; since the response reveals which cloud providers/geo-IP you block and roughly how populated those caches are, treat it like any other operational endpoint and restrict it at the network/reverse-proxy layer if that's more than your deployment wants to expose publicly.
 
 `add_status_route(app, path="/_guard/status", dependencies=None)` accepts a list of FastAPI dependencies (`dependencies=[Depends(require_admin)]`), applied the same way `APIRouter.add_api_route`'s own `dependencies` parameter is: a failing dependency rejects the request before `guard_initialization_status` runs. Only honored when `app` is a `FastAPI` instance; a plain Starlette app registers the route via `add_route` with no dependency support, as before, and passing dependencies to a non-FastAPI app raises `TypeError` instead of silently ignoring them.
+
+Endpoint Rate Limits
+--------------------
+
+A limit follows the handler, not the path. The adapter resolves every `endpoint_rate_limits` key through its own router, and a request matches a key when it reaches the same handler with the same path parameters, so a concrete-id key stays per resource. Two paths on one handler share one budget: `/login` and `/signin` below are one function, so a limit set under either key counts both, and a stacked path cannot get a fresh budget. `/signup` has its own handler, so its limit is its own. A generic handler stacked on many paths shares one budget across all of them, so give each limited path its own handler. A key that resolves to no route falls back to the normalized path. See the 5.0.0 release note "An endpoint limit follows the handler, not the path".
+
+```python
+from fastapi import FastAPI
+from guard import SecurityConfig
+
+app = FastAPI()
+
+
+@app.get("/login")
+@app.get("/signin")
+async def sign_in() -> dict[str, str]:
+    return {"page": "sign in"}
+
+
+@app.get("/signup")
+async def sign_up() -> dict[str, str]:
+    return {"page": "sign up"}
+
+
+config = SecurityConfig(
+    endpoint_rate_limits={
+        "/login": (5, 60),
+        "/signup": (3, 60),
+    },
+)
+```
 
 Agent Settings
 --------------
