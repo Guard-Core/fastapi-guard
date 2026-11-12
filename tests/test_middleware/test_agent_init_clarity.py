@@ -11,7 +11,7 @@ from guard.middleware import SecurityMiddleware
 
 
 def _config(**kwargs: Any) -> SecurityConfig:
-    return SecurityConfig(enable_agent=True, agent_api_key="x", **kwargs)
+    return SecurityConfig(enable_agent=True, agent_api_key="0123456789abcdef", **kwargs)
 
 
 async def test_missing_agent_package_fails_soft_with_clear_message(
