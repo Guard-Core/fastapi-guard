@@ -41,6 +41,7 @@ from starlette.routing import Match, Mount, get_route_path
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from guard._declared_path_params import warn_at_first_request
 from guard._lifespan_warm import warm_before_startup_complete
 from guard._response_headers import merge_vary
 from guard._route_gate_host import (
@@ -260,6 +261,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 return
 
             self._warn_if_eager_init_not_honored()
+            warn_at_first_request(
+                request.scope.get("app") if request else self._routing_app,
+                self.guard_decorator,
+            )
             await self.initialize()
             register_state(
                 self.config,
