@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -43,7 +43,9 @@ class RootResponse(BaseModel):
 
 class StatsResponse(BaseModel):
     banned_ips: list[str]
-    rate_limit_windows: dict[str, int]
+    rate_limit_windows: dict[str, int] | None
+    rate_limit_store: Literal["redis", "memory"]
+    redis_prefix: str | None
     active_rules: dict[str, Any]
 
 

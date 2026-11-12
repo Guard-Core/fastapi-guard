@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+import redis
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
@@ -18,6 +19,15 @@ SIMPLE_APP_MAIN = (
 )
 BANNED_IP = "203.0.113.5"
 WINDOWED_IP = "203.0.113.6"
+REDIS_WINDOWED_IP = "203.0.113.7"
+
+
+def _redis_window_keys(config: SecurityConfig, ip: str) -> list[str]:
+    client = redis.Redis.from_url(config.redis_url or "", decode_responses=True)
+    try:
+        return sorted(client.scan_iter(f"{config.redis_prefix}rate_limit:rate:{ip}*"))
+    finally:
+        client.close()
 
 
 def _simple_app(monkeypatch: pytest.MonkeyPatch) -> tuple[FastAPI, SecurityConfig]:
@@ -62,12 +72,16 @@ def test_clear_cache_route_drops_the_bans_and_the_rate_windows(
         windows.request_timestamps[WINDOWED_IP].append(time.time())
         assert portal.call(bans.is_ip_banned, BANNED_IP)
         assert windows.request_timestamps[WINDOWED_IP]
+        visitor = TestClient(app, client=(REDIS_WINDOWED_IP, 50000))
+        assert visitor.get("/").status_code == 200
+        assert _redis_window_keys(config, REDIS_WINDOWED_IP)
 
         response = client.post("/admin/clear-cache")
 
         assert response.status_code == 200
         assert not portal.call(bans.is_ip_banned, BANNED_IP)
         assert not windows.request_timestamps.get(WINDOWED_IP)
+        assert not _redis_window_keys(config, REDIS_WINDOWED_IP)
         assert "geo_cache" not in response.text
 
 
@@ -182,6 +196,36 @@ def test_stats_come_from_the_engine_and_carry_no_invented_numbers(
         after
     )
     assert after["active_rules"]["rate_limit"] == config.rate_limit
+
+
+def test_stats_name_redis_as_the_store_when_redis_holds_the_windows(
+    example: tuple[FastAPI, SecurityConfig],
+) -> None:
+    app, config = example
+    visitor = TestClient(app, client=("203.0.113.5", 50000))
+    for _ in range(5):
+        assert visitor.get("/").status_code == 200
+    assert _redis_window_keys(config, "203.0.113.5")
+
+    stats = TestClient(app, client=LOCAL).get("/admin/stats").json()
+
+    assert stats["rate_limit_store"] == "redis"
+    assert stats["rate_limit_windows"] is None
+    assert stats["redis_prefix"] == config.redis_prefix
+
+
+def test_stats_count_the_process_windows_when_redis_is_off(
+    example: tuple[FastAPI, SecurityConfig], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, config = example
+    monkeypatch.setattr(config, "enable_redis", False)
+    RateLimitManager(config).request_timestamps[WINDOWED_IP].append(time.time())
+
+    stats = TestClient(app, client=LOCAL).get("/admin/stats").json()
+
+    assert stats["rate_limit_store"] == "memory"
+    assert stats["rate_limit_windows"][WINDOWED_IP] == 1
+    assert stats["redis_prefix"] is None
 
 
 def test_emergency_switch_leaves_a_whitelist_it_did_not_extend_alone(

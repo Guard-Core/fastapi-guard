@@ -53,7 +53,13 @@ def advanced_app_main(monkeypatch: pytest.MonkeyPatch) -> object:
     monkeypatch.syspath_prepend(str(ADVANCED_APP_DIR))
     sys.modules.pop("app", None)
     sys.modules.pop("app.main", None)
-    return importlib.import_module("app.main")
+    main = importlib.import_module("app.main")
+    monkeypatch.setitem(
+        importlib.import_module("app.routes.admin")._ADMIN_ADDED_LOOPBACK,
+        "added",
+        False,
+    )
+    return main
 
 
 async def _close_redis_handler(redis_handler: RedisManager) -> None:
