@@ -33,6 +33,8 @@ flowchart TD
 
 The central component that manages the detection process:
 
+Internal attributes, not API; they may change without notice.
+
 ```python
 class SusPatternsManager:
     """Singleton pattern manager with enhanced detection capabilities."""
