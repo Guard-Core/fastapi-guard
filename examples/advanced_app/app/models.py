@@ -42,11 +42,8 @@ class RootResponse(BaseModel):
 
 
 class StatsResponse(BaseModel):
-    total_requests: int
-    blocked_requests: int
     banned_ips: list[str]
-    rate_limited_ips: dict[str, int]
-    suspicious_activities: list[dict[str, Any]]
+    rate_limit_windows: dict[str, int]
     active_rules: dict[str, Any]
 
 

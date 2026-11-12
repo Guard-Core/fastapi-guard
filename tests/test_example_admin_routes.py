@@ -105,3 +105,74 @@ def test_unban_route_refuses_input_that_is_not_an_ip(
     app, _ = example
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         assert client.post("/admin/unban-ip", json=garbage).status_code == 400
+
+
+OUTSIDER = ("203.0.113.9", 50000)
+LOCAL = ("127.0.0.1", 50000)
+
+
+def test_emergency_switch_refuses_outsiders_and_keeps_the_admin(
+    example: tuple[FastAPI, SecurityConfig],
+) -> None:
+    app, config = example
+    admin = TestClient(app, client=LOCAL)
+    outsider = TestClient(app, client=OUTSIDER)
+    assert outsider.get("/").status_code == 200
+
+    on = admin.put("/admin/emergency-mode", json=True)
+    assert on.status_code == 200
+    assert on.json()["details"]["emergency_mode"] is True
+    assert config.emergency_mode is True
+    assert outsider.get("/").status_code == 503
+    assert admin.get("/").status_code == 200
+
+    off = admin.put("/admin/emergency-mode", json=False)
+    assert off.json()["details"]["emergency_mode"] is False
+    assert outsider.get("/").status_code == 200
+    assert admin.get("/").status_code == 200
+
+
+@pytest.mark.parametrize("body", ["yes", 1, None, {"enable": True}])
+def test_emergency_switch_refuses_a_body_that_is_not_a_boolean(
+    example: tuple[FastAPI, SecurityConfig], body: object
+) -> None:
+    app, config = example
+    response = TestClient(app, client=LOCAL).put("/admin/emergency-mode", json=body)
+    assert response.status_code == 400
+    assert config.emergency_mode is False
+
+
+def test_emergency_switch_defers_to_the_dashboard_when_dynamic_rules_are_on(
+    example: tuple[FastAPI, SecurityConfig],
+) -> None:
+    app, config = example
+    config.agent_api_key = "test-key"
+    config.enable_agent = True
+    config.enable_dynamic_rules = True
+    response = TestClient(app, client=LOCAL).put("/admin/emergency-mode", json=True)
+    assert response.status_code == 409
+    assert "dashboard" in response.text
+    assert config.emergency_mode is False
+
+
+def test_stats_come_from_the_engine_and_carry_no_invented_numbers(
+    example: tuple[FastAPI, SecurityConfig],
+) -> None:
+    app, config = example
+    with TestClient(app, client=LOCAL) as client:
+        portal = client.portal
+        assert portal is not None
+        bans = ip_ban_manager_for(config)
+        before = client.get("/admin/stats").json()
+        portal.call(bans.ban_ip, BANNED_IP, 300, "test")
+        after = client.get("/admin/stats").json()
+        portal.call(bans.unban_ip, BANNED_IP)
+        lifted = client.get("/admin/stats").json()
+
+    assert BANNED_IP not in before["banned_ips"]
+    assert BANNED_IP in after["banned_ips"]
+    assert BANNED_IP not in lifted["banned_ips"]
+    assert not {"total_requests", "blocked_requests", "suspicious_activities"} & set(
+        after
+    )
+    assert after["active_rules"]["rate_limit"] == config.rate_limit

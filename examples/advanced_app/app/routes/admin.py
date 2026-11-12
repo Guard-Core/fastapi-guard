@@ -1,6 +1,8 @@
 import logging
+import time
 from datetime import datetime, timezone
 from ipaddress import ip_address
+from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException
 from guard_core.handlers.cloud_handler import cloud_handler_for
@@ -13,6 +15,11 @@ from app.security import guard, security_config
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["Admin & Utilities"])
+
+DYNAMIC_RULES_OWN_EMERGENCY_MODE = (
+    "this app takes emergency mode from the dashboard's dynamic rules; a local "
+    "switch would be reverted at the next rule update"
+)
 
 
 @router.post(
@@ -50,36 +57,39 @@ async def unban_ip_address(
     status_code=200,
     summary="Security Statistics",
     description=(
-        "Returns security statistics including total requests, blocked requests, banned"
-        "IPs, rate-limited IPs, and active rules. Restricted to localhost."
+        "Returns the banned IPs, the rate limit windows in use and the active "
+        "rules, read from the guard engine. The engine keeps no request counters, "
+        "so none are reported. Restricted to localhost."
     ),
     responses={403: {"description": "Not authorized (non-localhost IP)"}},
 )
 @guard.require_ip(whitelist=["127.0.0.1"])
 async def get_security_stats() -> StatsResponse:
+    """Reads this process's ban table (IPBanManager.banned_ips), its rate limit
+    windows (RateLimitManager.request_timestamps) and the SecurityConfig rules.
+    The engine keeps no request counters, so none are reported."""
+    now = time.time()
     return StatsResponse(
-        total_requests=1500,
-        blocked_requests=75,
-        banned_ips=["192.168.1.100", "10.0.0.50"],
-        rate_limited_ips={"192.168.1.200": 5, "172.16.0.10": 3},
-        suspicious_activities=[
-            {
-                "ip": "192.168.1.100",
-                "reason": "SQL injection attempt",
-                "timestamp": datetime.now(timezone.utc),
-            },
-            {
-                "ip": "10.0.0.50",
-                "reason": "Rapid requests",
-                "timestamp": datetime.now(timezone.utc),
-            },
-        ],
+        banned_ips=sorted(
+            ip
+            for ip, expiry in ip_ban_manager_for(security_config).banned_ips.items()
+            if expiry > now
+        ),
+        rate_limit_windows={
+            key: len(window)
+            for key, window in RateLimitManager(
+                security_config
+            ).request_timestamps.items()
+            if window
+        },
         active_rules={
-            "rate_limit": 30,
-            "rate_window": 60,
-            "auto_ban_threshold": 5,
-            "blocked_countries": ["XX"],
-            "blocked_clouds": ["AWS", "GCP", "Azure"],
+            "rate_limit": security_config.rate_limit,
+            "rate_limit_window": security_config.rate_limit_window,
+            "auto_ban_threshold": security_config.auto_ban_threshold,
+            "blocked_countries": list(security_config.blocked_countries),
+            "block_cloud_providers": sorted(
+                security_config.block_cloud_providers or ()
+            ),
         },
     )
 
@@ -112,19 +122,46 @@ async def clear_security_cache() -> MessageResponse:
     status_code=200,
     summary="Toggle Emergency Mode",
     description=(
-        "Enables or disables emergency lockdown mode. When active, all non-whitelisted"
-        "traffic is blocked. Restricted to localhost."
+        "Switches emergency mode on this process: only the emergency whitelist (plus "
+        "127.0.0.1) is admitted and everyone else gets 503. The sources of emergency "
+        "mode are SecurityConfig.emergency_mode at startup and a dynamic rule from "
+        "the dashboard at runtime; this route changes this process only, so "
+        "multi-worker deployments use the dashboard's dynamic rule. Answers 409 when "
+        "dynamic rules are enabled and 400 when the body is not a boolean. "
+        "Restricted to localhost."
     ),
     responses={403: {"description": "Not authorized (non-localhost IP)"}},
 )
 @guard.require_ip(whitelist=["127.0.0.1"])
 async def toggle_emergency_mode(
-    enable: bool = Body(...),
+    enable: Annotated[Any, Body(description="true or false")] = None,
 ) -> MessageResponse:
-    mode = "enabled" if enable else "disabled"
+    """Switches emergency mode on this process through SecurityConfig.
+
+    Emergency mode has two sources: SecurityConfig.emergency_mode set at startup,
+    or a dynamic rule from the dashboard at runtime. This route is the local
+    switch: it changes this process only, so a multi-worker deployment uses the
+    dashboard's dynamic rule. While emergency mode is on only emergency_whitelist
+    is admitted, so enabling adds 127.0.0.1 to keep this admin route reachable.
+    """
+    if not isinstance(enable, bool):
+        raise HTTPException(status_code=400, detail="The body must be true or false")
+    if security_config.enable_dynamic_rules:
+        raise HTTPException(status_code=409, detail=DYNAMIC_RULES_OWN_EMERGENCY_MODE)
+    if enable and "127.0.0.1" not in security_config.emergency_whitelist:
+        security_config.emergency_whitelist = [
+            *security_config.emergency_whitelist,
+            "127.0.0.1",
+        ]
+    security_config.emergency_mode = enable
+    state = "enabled" if security_config.emergency_mode else "disabled"
     return MessageResponse(
-        message=f"Emergency mode {mode}",
-        details={"emergency_mode": enable, "timestamp": datetime.now(timezone.utc)},
+        message=f"Emergency mode {state}",
+        details={
+            "emergency_mode": security_config.emergency_mode,
+            "emergency_whitelist": list(security_config.emergency_whitelist),
+            "timestamp": datetime.now(timezone.utc),
+        },
     )
 
 
