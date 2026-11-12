@@ -75,7 +75,7 @@ config = SecurityConfig(
 app.add_middleware(SecurityMiddleware, config=config)
 ```
 
-Pairing `cors_allow_credentials=True` with `"*"` in `cors_allow_origins` is refused. With `fail_on_misconfiguration=True` (the 5.0.0 default) `SecurityConfig` raises at construction: `CORS misconfiguration: wildcard origin '*' is incompatible with cors_allow_credentials=True Set fail_on_misconfiguration=False to start with it anyway.` With `fail_on_misconfiguration=False` it logs one WARNING, `CORS misconfiguration: wildcard origin '*' is incompatible with cors_allow_credentials=True fail_on_misconfiguration=False keeps starting with it.`, and drops credentials.
+Pairing `cors_allow_credentials=True` with `"*"` in `cors_allow_origins` is refused. With `fail_on_misconfiguration=True` (the 5.0.0 default) `SecurityConfig` raises at construction: `CORS misconfiguration: wildcard origin '*' is incompatible with cors_allow_credentials=True. Set fail_on_misconfiguration=False to start with it anyway.` With `fail_on_misconfiguration=False` it logs one WARNING, `CORS misconfiguration: wildcard origin '*' is incompatible with cors_allow_credentials=True. fail_on_misconfiguration=False keeps starting with it.`, and drops credentials.
 
 ___
 
