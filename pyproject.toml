@@ -301,7 +301,7 @@ virtualenv = "2026-10-23T00:00:00Z"
 
 [tool.deptry]
 exclude = ["tests", ".venv", "vulture_whitelist.py", "examples", "docs", "manual_testing"]
-extend_exclude = ["conftest.py"]
+extend_exclude = ["conftest.py", "tools/semgrep/\\.venv"]
 known_first_party = ["guard", "guard_core"]
 per_rule_ignores = { "DEP002" = [
     "aiohttp",
