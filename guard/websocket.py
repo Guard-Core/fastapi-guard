@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import NamedTuple
 
 from guard_core import check_rate_limit_by_ip, is_ip_allowed
-from guard_core._parked_records import register_per_app_record
+from guard_core.adapter_support import register_per_app_record
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.implementations.emergency_mode import EmergencyModeCheck
 from guard_core.core.checks.implementations.suspicious_activity import (

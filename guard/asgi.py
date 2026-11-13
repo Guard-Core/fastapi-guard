@@ -39,7 +39,7 @@ import time
 from collections.abc import AsyncGenerator
 
 from fastapi import Response
-from guard_core._utils.app_scope import hold_app_scope, release_app_scope
+from guard_core.adapter_support import hold_app_scope, release_app_scope
 from guard_core.decorators.base import RouteConfig
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.behavior_handler import config_to_rule

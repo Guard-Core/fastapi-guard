@@ -9,8 +9,11 @@ from typing import TYPE_CHECKING
 from fastapi import Request, Response
 from fastapi.encoders import jsonable_encoder
 from guard_core import apply_security_headers_settings
-from guard_core._utils.app_scope import hold_app_scope, release_app_scope
-from guard_core._utils.sampling import observe_sampled_key
+from guard_core.adapter_support import (
+    hold_app_scope,
+    observe_sampled_key,
+    release_app_scope,
+)
 from guard_core.core.behavioral import BehavioralContext, BehavioralProcessor
 from guard_core.core.bypass import BypassContext, BypassHandler
 from guard_core.core.checks.pipeline import SecurityCheckPipeline

@@ -26,7 +26,7 @@ from guard_core import (
     security_headers_manager as security_headers_manager,
     sus_patterns_handler as sus_patterns_handler,
 )
-from guard_core._config_capabilities import register_adapter
+from guard_core.adapter_support import register_adapter
 
 from guard.asgi import PureASGISecurityMiddleware as PureASGISecurityMiddleware
 from guard.middleware import SecurityMiddleware as SecurityMiddleware
