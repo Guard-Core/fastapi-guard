@@ -214,7 +214,7 @@ async def test_websocket_guard_request_exposes_the_full_protocol_surface() -> No
     guard_request = _WebSocketGuardRequest(websocket)
 
     assert guard_request.url_path == "/ws"
-    assert guard_request.url_scheme == "ws"
+    assert guard_request.url_scheme == "http"
     assert guard_request.url_full == "ws://testserver/ws?token=abc"
     assert guard_request.url_replace_scheme("wss").startswith("wss://")
     assert guard_request.method == "WEBSOCKET"
@@ -352,8 +352,16 @@ def test_ws_close_reasons_pins_the_exact_code_reason_pair_set() -> None:
         WebSocketCloseReason(1008, "Suspicious activity detected"),
         WebSocketCloseReason(1013, "Service temporarily unavailable"),
         WebSocketCloseReason(1008, "User agent not allowed"),
+        WebSocketCloseReason(1008, "HTTPS required"),
+        WebSocketCloseReason(1008, "Cloud provider IP not allowed"),
+        WebSocketCloseReason(1008, "Required header missing"),
+        WebSocketCloseReason(1008, "Authentication required"),
+        WebSocketCloseReason(1008, "Referrer not allowed"),
+        WebSocketCloseReason(1008, "Request validation failed"),
+        WebSocketCloseReason(1008, "Access outside the allowed time window"),
+        WebSocketCloseReason(1008, "Request refused"),
     }
-    assert len(WS_CLOSE_REASONS) == 8
+    assert len(WS_CLOSE_REASONS) == 16
 
 
 def test_guard_websocket_skips_rate_limit_when_client_is_whitelisted() -> None:

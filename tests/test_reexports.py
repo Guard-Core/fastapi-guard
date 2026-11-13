@@ -29,6 +29,14 @@ def test_all_derives_from_guard_core_exports() -> None:
         "WS_CLOSE_SUSPICIOUS_ACTIVITY",
         "WS_CLOSE_EMERGENCY_MODE",
         "WS_CLOSE_USER_AGENT_NOT_ALLOWED",
+        "WS_CLOSE_HTTPS_REQUIRED",
+        "WS_CLOSE_CLOUD_PROVIDER_BLOCKED",
+        "WS_CLOSE_REQUIRED_HEADER_MISSING",
+        "WS_CLOSE_AUTHENTICATION_REQUIRED",
+        "WS_CLOSE_REFERRER_REQUIRED",
+        "WS_CLOSE_VALIDATION_FAILED",
+        "WS_CLOSE_OUTSIDE_TIME_WINDOW",
+        "WS_CLOSE_CUSTOM_REQUEST_REFUSED",
         *guard_core.__all__,
     }
 

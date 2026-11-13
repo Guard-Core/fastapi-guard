@@ -7,17 +7,32 @@ from typing import NamedTuple
 from guard_core import check_rate_limit_by_ip, is_ip_allowed
 from guard_core.adapter_support import register_per_app_record
 from guard_core.core.checks.base import SecurityCheck
+from guard_core.core.checks.implementations.authentication import AuthenticationCheck
+from guard_core.core.checks.implementations.cloud_ip_refresh import CloudIpRefreshCheck
+from guard_core.core.checks.implementations.cloud_provider import CloudProviderCheck
+from guard_core.core.checks.implementations.custom_request import CustomRequestCheck
+from guard_core.core.checks.implementations.custom_validators import (
+    CustomValidatorsCheck,
+)
 from guard_core.core.checks.implementations.emergency_mode import EmergencyModeCheck
+from guard_core.core.checks.implementations.https_enforcement import (
+    HttpsEnforcementCheck,
+)
+from guard_core.core.checks.implementations.referrer import ReferrerCheck
+from guard_core.core.checks.implementations.request_logging import RequestLoggingCheck
+from guard_core.core.checks.implementations.required_headers import (
+    RequiredHeadersCheck,
+)
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
+from guard_core.core.checks.implementations.time_window import TimeWindowCheck
 from guard_core.core.checks.implementations.user_agent import UserAgentCheck
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.events import SecurityEventBus
-from guard_core.core.responses import ErrorResponseFactory
 from guard_core.core.routing import RouteConfigResolver, RoutingContext
 from guard_core.core.validation import RequestValidator, ValidationContext
-from guard_core.decorators.base import BaseSecurityDecorator
+from guard_core.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.ratelimit_handler import RateLimitManager
@@ -39,9 +54,11 @@ from guard._middleware_state import get_state
 from guard.adapters import _join_repeated_header_lines, asgi_scope_as_dict
 from guard.lifespan import (
     _find_security_config,
+    _find_security_middleware,
     _find_security_redis_handler,
     initialize_like_http_if_cold,
 )
+from guard.middleware import SecurityMiddleware
 
 logger = logging.getLogger("guard_core")
 
@@ -75,6 +92,31 @@ WS_CLOSE_USER_AGENT_NOT_ALLOWED = WebSocketCloseReason(
     status.WS_1008_POLICY_VIOLATION, "User agent not allowed"
 )
 
+WS_CLOSE_HTTPS_REQUIRED = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "HTTPS required"
+)
+WS_CLOSE_CLOUD_PROVIDER_BLOCKED = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "Cloud provider IP not allowed"
+)
+WS_CLOSE_REQUIRED_HEADER_MISSING = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "Required header missing"
+)
+WS_CLOSE_AUTHENTICATION_REQUIRED = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "Authentication required"
+)
+WS_CLOSE_REFERRER_REQUIRED = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "Referrer not allowed"
+)
+WS_CLOSE_VALIDATION_FAILED = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "Request validation failed"
+)
+WS_CLOSE_OUTSIDE_TIME_WINDOW = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "Access outside the allowed time window"
+)
+WS_CLOSE_CUSTOM_REQUEST_REFUSED = WebSocketCloseReason(
+    status.WS_1008_POLICY_VIOLATION, "Request refused"
+)
+
 _DETECTION_CHECK_FAILED_STATUS_CODE = 500
 # guard-core 5.0.0 answers a Redis outage under fail_secure with 503 (D-188)
 _REDIS_OUTAGE_STATUS_CODE = 503
@@ -92,6 +134,14 @@ WS_CLOSE_REASONS: tuple[WebSocketCloseReason, ...] = (
     WS_CLOSE_SUSPICIOUS_ACTIVITY,
     WS_CLOSE_EMERGENCY_MODE,
     WS_CLOSE_USER_AGENT_NOT_ALLOWED,
+    WS_CLOSE_HTTPS_REQUIRED,
+    WS_CLOSE_CLOUD_PROVIDER_BLOCKED,
+    WS_CLOSE_REQUIRED_HEADER_MISSING,
+    WS_CLOSE_AUTHENTICATION_REQUIRED,
+    WS_CLOSE_REFERRER_REQUIRED,
+    WS_CLOSE_VALIDATION_FAILED,
+    WS_CLOSE_OUTSIDE_TIME_WINDOW,
+    WS_CLOSE_CUSTOM_REQUEST_REFUSED,
 )
 
 
@@ -105,7 +155,9 @@ class _WebSocketGuardRequest:
 
     @property
     def url_scheme(self) -> str:
-        return self._websocket.url.scheme
+        # The engine's HTTPS rules know http and https: wss is the TLS handshake.
+        scheme = self._websocket.url.scheme
+        return {"wss": "https", "ws": "http"}.get(scheme, scheme)
 
     @property
     def url_full(self) -> str:
@@ -151,6 +203,19 @@ class _WebSocketDetectionResponse:
         self.body: bytes | None = message.encode()
 
 
+class _WebSocketResponseFactory:
+    security_headers_manager: object = None
+
+    async def create_https_redirect(self, request: GuardRequest) -> GuardResponse:
+        # A handshake cannot be redirected: the refusal closes the socket.
+        return _WebSocketDetectionResponse(status.HTTP_403_FORBIDDEN, "HTTPS required")
+
+    async def apply_modifier(
+        self, response: GuardResponse, request: GuardRequest | None = None
+    ) -> GuardResponse:
+        return response
+
+
 class _WebSocketDetectionMiddleware:
     def __init__(self, config: SecurityConfig) -> None:
         self.config = config
@@ -160,7 +225,10 @@ class _WebSocketDetectionMiddleware:
         self.rate_limit_handler: RateLimitManager | None = None
         self.agent_handler: AgentHandlerProtocol | None = None
         self.guard_response_factory: GuardResponseFactory | None = None
-        self.response_factory: ErrorResponseFactory | None = None
+        self.response_factory: _WebSocketResponseFactory | None = (
+            _WebSocketResponseFactory()
+        )
+        self.engine: SecurityMiddleware | None = None
         self.guard_decorator: BaseSecurityDecorator | None = None
         self.geo_ip_handler = config.geo_ip_handler
         self.event_bus = SecurityEventBus(
@@ -179,7 +247,8 @@ class _WebSocketDetectionMiddleware:
         return _WebSocketDetectionResponse(status_code, default_message)
 
     async def refresh_cloud_ip_ranges(self) -> None:
-        return None
+        if self.engine is not None:
+            await self.engine.refresh_cloud_ip_ranges()
 
 
 _DETECTION_ATTRIBUTE = "_guard_ws_detection_middleware"
@@ -373,11 +442,12 @@ async def _check_ban(
 
 async def _check_ip_allowed(
     guard_request: GuardRequest, config: SecurityConfig, client_ip: str
-) -> None:
+) -> bool:
     geo_ip_handler = config.geo_ip_handler
     if not isinstance(geo_ip_handler, GeoIPHandler):
         geo_ip_handler = None
-    if not await is_ip_allowed(client_ip, config, geo_ip_handler):
+    allowed = await is_ip_allowed(client_ip, config, geo_ip_handler)
+    if not allowed:
         await _deny_handshake(
             guard_request,
             config,
@@ -385,6 +455,7 @@ async def _check_ip_allowed(
             "ip_security",
             f"IP not allowed: {client_ip}",
         )
+    return allowed
 
 
 async def _check_handshake_rate_limit(
@@ -417,8 +488,58 @@ async def _check_handshake_rate_limit(
         )
 
 
-def _user_agent_check_applies(config: SecurityConfig) -> bool:
-    return bool(config.blocked_user_agents) or config.block_empty_user_agent
+def _resolve_handshake_route(
+    websocket: WebSocket,
+    guard_request: GuardRequest,
+    config: SecurityConfig,
+    app: object,
+) -> RouteConfig | None:
+    scope_app = app if app is not None else websocket.scope.get("app")
+    middleware = _get_ws_detection_middleware(config)
+    middleware.engine = (
+        None if scope_app is None else _find_security_middleware(scope_app)
+    )
+    state = websocket.state
+    decorator = None if scope_app is None else resolve_app_state_decorator(scope_app)
+    if decorator is not None:
+        state.guard_decorator = decorator
+    route_id = getattr(websocket.scope.get("endpoint"), "_guard_route_id", None)
+    if route_id:
+        state.guard_route_id = route_id
+    route_config = middleware.route_resolver.get_route_config(guard_request)
+    state.route_config = route_config
+    return route_config
+
+
+async def _run_applicable_checks(
+    guard_request: GuardRequest,
+    config: SecurityConfig,
+    route_config: RouteConfig | None,
+    checks: tuple[tuple[type[SecurityCheck], WebSocketCloseReason], ...],
+) -> None:
+    route_configs = None if route_config is None else [route_config]
+    for check_class, denial in checks:
+        if check_class.applies_to(config, route_configs):
+            await _mark_exclusion_scope(guard_request, config)
+            await _run_handshake_check(guard_request, config, check_class, denial)
+
+
+_CHECKS_BEFORE_IP_RULES = (
+    (HttpsEnforcementCheck, WS_CLOSE_HTTPS_REQUIRED),
+    (RequestLoggingCheck, WS_CLOSE_SECURITY_CHECK_FAILED),
+)
+_CHECKS_AFTER_IP_RULES = (
+    (CloudIpRefreshCheck, WS_CLOSE_SECURITY_CHECK_FAILED),
+    (CloudProviderCheck, WS_CLOSE_CLOUD_PROVIDER_BLOCKED),
+    (UserAgentCheck, WS_CLOSE_USER_AGENT_NOT_ALLOWED),
+)
+_ROUTE_CHECKS_AFTER_RATE_LIMIT = (
+    (RequiredHeadersCheck, WS_CLOSE_REQUIRED_HEADER_MISSING),
+    (AuthenticationCheck, WS_CLOSE_AUTHENTICATION_REQUIRED),
+    (ReferrerCheck, WS_CLOSE_REFERRER_REQUIRED),
+    (CustomValidatorsCheck, WS_CLOSE_VALIDATION_FAILED),
+    (TimeWindowCheck, WS_CLOSE_OUTSIDE_TIME_WINDOW),
+)
 
 
 async def _run_websocket_checks(
@@ -430,6 +551,7 @@ async def _run_websocket_checks(
     guard_request: GuardRequest = _WebSocketGuardRequest(websocket)
     client_ip = await extract_client_ip(guard_request, config)
     websocket.state.client_ip = client_ip
+    route_config = _resolve_handshake_route(websocket, guard_request, config, app)
 
     if client_ip == UNKNOWN_CLIENT_IDENTITY and config.fail_secure:
         await _deny_handshake(
@@ -445,27 +567,41 @@ async def _run_websocket_checks(
             guard_request, config, EmergencyModeCheck, WS_CLOSE_EMERGENCY_MODE
         )
 
+    await _run_applicable_checks(
+        guard_request, config, route_config, _CHECKS_BEFORE_IP_RULES
+    )
     await _check_ban(guard_request, config, client_ip)
-    await _check_ip_allowed(guard_request, config, client_ip)
+    admitted = await _check_ip_allowed(guard_request, config, client_ip)
 
     whitelist_skips_checks = bool(config.whitelist) and not getattr(
         config, "whitelist_access_only", False
     )
-    is_whitelisted = client_ip != UNKNOWN_CLIENT_IDENTITY and whitelist_skips_checks
+    # Membership, as the HTTP check decides it: a client that only passed because
+    # passive_mode logs the refusal is not on the list.
+    is_whitelisted = (
+        admitted and client_ip != UNKNOWN_CLIENT_IDENTITY and whitelist_skips_checks
+    )
     websocket.state.is_whitelisted = is_whitelisted
 
-    if _user_agent_check_applies(config):
-        await _mark_exclusion_scope(guard_request, config)
-        await _run_handshake_check(
-            guard_request, config, UserAgentCheck, WS_CLOSE_USER_AGENT_NOT_ALLOWED
-        )
+    await _run_applicable_checks(
+        guard_request, config, route_config, _CHECKS_AFTER_IP_RULES
+    )
 
-    if client_ip != UNKNOWN_CLIENT_IDENTITY and not whitelist_skips_checks:
+    if client_ip != UNKNOWN_CLIENT_IDENTITY and not is_whitelisted:
         await _check_handshake_rate_limit(
             guard_request, config, redis_handler, client_ip
         )
 
+    await _run_applicable_checks(
+        guard_request, config, route_config, _ROUTE_CHECKS_AFTER_RATE_LIMIT
+    )
     await _run_penetration_detection(guard_request, config, app)
+    await _run_applicable_checks(
+        guard_request,
+        config,
+        route_config,
+        ((CustomRequestCheck, WS_CLOSE_CUSTOM_REQUEST_REFUSED),),
+    )
 
 
 async def _initialize_redis_like_http(
