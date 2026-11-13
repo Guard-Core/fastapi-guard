@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from guard_core._misconfiguration_kinds import MisconfigurationError
+from guard_core.exceptions import MisconfigurationError
 from httpx import ASGITransport, AsyncClient
 
 from guard import SecurityDecorator
