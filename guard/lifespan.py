@@ -9,7 +9,7 @@ from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 
-from guard._declared_path_params import report_at_warm
+from guard._declared_path_params import report_declared_path_params
 from guard._decorator_adoption import resolve_app_state_decorator
 from guard._middleware_state import (
     MiddlewareState,
@@ -130,7 +130,7 @@ async def _warm_middleware_or_adopt(
         middleware._adopt_warm_state(warm)
         middleware.mark_initialized()
         return
-    report_at_warm(middleware.config, app, middleware.guard_decorator)
+    report_declared_path_params(middleware.config, app, middleware.guard_decorator)
     try:
         await middleware.initialize()
     except GuardRedisError as e:

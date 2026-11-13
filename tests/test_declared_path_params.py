@@ -1,6 +1,6 @@
 """LEDGER 6.851: a declared detection_exclusion path param the route does not have
-is reported at the lifespan warm (a startup failure with fail_on_misconfiguration)
-and as one WARNING at the lazy first-request init (never a raise)."""
+is reported at the lifespan warm and at the lazy first-request init: a raise with
+fail_on_misconfiguration, one WARNING without it."""
 
 import logging
 from collections.abc import Callable
@@ -238,7 +238,6 @@ async def test_a_sound_declaration_reports_nothing(
 
 
 @CLASSES
-@pytest.mark.parametrize("flag", [True, False])
 @pytest.mark.parametrize(
     ("declare", "path", "tail"),
     [
@@ -246,15 +245,14 @@ async def test_a_sound_declaration_reports_nothing(
         (declare_rootless, "/anything", _rootless("/{tail:path}")),
     ],
 )
-async def test_the_lazy_first_request_warns_once_and_never_raises(
+async def test_the_lazy_first_request_warns_once_with_the_flag_off(
     middleware_class: type,
-    flag: bool,
     declare: Declare,
     path: str,
     tail: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    app = _app(middleware_class, _config(fail_on_misconfiguration=flag), declare)
+    app = _app(middleware_class, _config(fail_on_misconfiguration=False), declare)
     caplog.set_level(logging.WARNING, logger=LOGGER)
 
     assert await _get(app, path) == 200
