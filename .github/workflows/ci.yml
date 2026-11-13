@@ -231,8 +231,8 @@ jobs:
       - name: Install the shipped dependencies at their declared floors, the engine from its head
         run: |
           echo "guard-core @ file://$PWD/$(ls engine-dist/*.whl)" > overrides.txt
-          uv pip compile pyproject.toml --override overrides.txt --extra agent --extra redis --extra geo --extra cloud --resolution lowest-direct --python-version "$MATRIX_PYTHON_VERSION" --no-emit-package guard-core --no-emit-package guard-agent --no-emit-package fastapi-guard --no-header -o floors.txt
-          uv pip install -r floors.txt
+          uv pip compile pyproject.toml --override overrides.txt --extra agent --extra redis --extra geo --extra cloud --resolution lowest-direct --python-version "$MATRIX_PYTHON_VERSION" --no-emit-package guard-core --no-emit-package guard-agent --no-emit-package fastapi-guard --no-header --generate-hashes -o floors.txt
+          uv pip install --require-hashes -r floors.txt
           uv pip install --no-deps --force-reinstall engine-dist/*.whl
         env:
           MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
