@@ -408,7 +408,7 @@ async def test_get_route_decorator_config_no_guard_decorator() -> None:
 
 async def test_get_route_decorator_config_fallback_to_middleware_decorator() -> None:
     app = FastAPI()
-    config = SecurityConfig()
+    config = SecurityConfig(fail_on_misconfiguration=False)
     middleware = SecurityMiddleware(app, config=config)
 
     decorator = SecurityDecorator(config)

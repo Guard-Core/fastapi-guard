@@ -95,6 +95,14 @@ class _StateRegistry:
         store = self._store_of(owner) if owner is not None else None
         (self._ownerless if store is None else store)[key] = entry
 
+    def forget(self, key: _StateKey, owner: object | None) -> None:
+        stores = [self._ownerless]
+        own = getattr(owner, _STORE_ATTRIBUTE, None)
+        if own is not None:
+            stores.append(own)
+        for store in stores:
+            store.pop(key, None)
+
     def drop_config(self, config: object, owner: object) -> None:
         stores = [self._ownerless]
         own = getattr(owner, _STORE_ATTRIBUTE, None)
@@ -138,6 +146,12 @@ def register_state(
     _STATE_REGISTRY.put(
         _state_key(config, decorator), _Entry(config, decorator, state), owner
     )
+
+
+def unregister_state(
+    config: object, decorator: object, owner: object | None = None
+) -> None:
+    _STATE_REGISTRY.forget(_state_key(config, decorator), owner)
 
 
 def drop_states_of(config: object, owner: object) -> None:

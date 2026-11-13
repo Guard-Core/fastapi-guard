@@ -251,30 +251,30 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             request.scope.get("app") if request else self._routing_app,
             self.guard_decorator,
         )
-        if self._is_initialized():
-            return
+        if not self._is_initialized():
+            await self._initialize_once(request)
+        await self.handler_initializer.complete_decorator_adoption()
+
+    async def _initialize_once(self, request: Request | None) -> None:
         async with self._init_lock:
             if self._is_initialized():
                 return
 
             from guard._decorator_adoption import adopt_app_state_decorator
-            from guard._middleware_state import (
-                MiddlewareState,
-                get_state,
-                register_state,
-                state_owner,
-            )
+            from guard._middleware_state import get_state, state_owner
 
-            self.guard_decorator = adopt_app_state_decorator(
-                self.guard_decorator, request
-            )
+            decorator = adopt_app_state_decorator(self.guard_decorator, request)
             owner = state_owner(request, self)
-            warm = get_state(self.config, self.guard_decorator, owner)
+            warm = get_state(self.config, decorator, owner)
             if warm is not None:
+                self.guard_decorator = decorator
+                self.route_resolver.context.guard_decorator = decorator
                 self._adopt_warm_state(warm)
                 self._initialized = True
                 return
 
+            if decorator is not self.guard_decorator:
+                self._adopt_decorator(decorator)
             self._warn_if_eager_init_not_honored()
             report_declared_path_params(
                 self.config,
@@ -282,24 +282,29 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 self.guard_decorator,
             )
             await self.initialize()
-            register_state(
-                self.config,
-                self.guard_decorator,
-                MiddlewareState(
-                    security_pipeline=self.security_pipeline,
-                    composite_handler=self.handler_initializer.composite_handler,
-                    event_bus=self.event_bus,
-                    metrics_collector=self.metrics_collector,
-                    response_factory=self.response_factory,
-                    validator=self.validator,
-                    bypass_handler=self.bypass_handler,
-                    behavioral_processor=self.behavioral_processor,
-                    handler_initializer=self.handler_initializer,
-                    agent_handler=self.agent_handler,
-                ),
-                owner,
-            )
+            self._register_state(owner)
             self._initialized = True
+
+    def _register_state(self, owner: object) -> None:
+        from guard._middleware_state import MiddlewareState, register_state
+
+        register_state(
+            self.config,
+            self.guard_decorator,
+            MiddlewareState(
+                security_pipeline=self.security_pipeline,
+                composite_handler=self.handler_initializer.composite_handler,
+                event_bus=self.event_bus,
+                metrics_collector=self.metrics_collector,
+                response_factory=self.response_factory,
+                validator=self.validator,
+                bypass_handler=self.bypass_handler,
+                behavioral_processor=self.behavioral_processor,
+                handler_initializer=self.handler_initializer,
+                agent_handler=self.agent_handler,
+            ),
+            owner,
+        )
 
     def _adopt_warm_state(self, state: "MiddlewareState") -> None:
         self.security_pipeline = state.security_pipeline
@@ -392,7 +397,27 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     def set_decorator_handler(
         self, decorator_handler: BaseSecurityDecorator | None
     ) -> None:
-        self.guard_decorator = decorator_handler
+        self._adopt_decorator(decorator_handler)
+
+    def _adopt_decorator(self, decorator: BaseSecurityDecorator | None) -> None:
+        # The engine goes first: it can raise, and then nothing here changes. The
+        # contexts bind after it returns, so a request on another thread never sees
+        # the decorator before its ban manager is injected.
+        previous = self.guard_decorator
+        self.handler_initializer.adopt_decorator(decorator)
+        self.geo_ip_handler = self.handler_initializer.geo_ip_handler
+        self.guard_decorator = decorator
+        self.route_resolver.context.guard_decorator = decorator
+        self.response_factory.context.guard_decorator = decorator
+        behavioral = self.behavioral_processor.context
+        behavioral.guard_decorator = decorator
+        behavioral.behavior_tracker = self.handler_initializer.behavior_tracker
+        if self._is_initialized():
+            from guard._middleware_state import unregister_state
+
+            owner = self._routing_app if self._routing_app is not None else self
+            unregister_state(self.config, previous, owner)
+            self._register_state(owner)
 
     async def _check_time_window(self, time_restrictions: dict[str, str]) -> bool:
         result: bool = await self.validator.check_time_window(time_restrictions)
@@ -965,8 +990,6 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     async def initialize(self) -> None:
         if self.security_pipeline is None:
             self._build_security_pipeline()
-
-        self.handler_initializer.guard_decorator = self.guard_decorator
 
         await self.handler_initializer.initialize_redis_handlers()
         self.geo_ip_handler = self.handler_initializer.geo_ip_handler

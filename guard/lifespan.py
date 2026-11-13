@@ -11,12 +11,7 @@ from guard_core.models import SecurityConfig
 
 from guard._declared_path_params import report_declared_path_params
 from guard._decorator_adoption import resolve_app_state_decorator
-from guard._middleware_state import (
-    MiddlewareState,
-    drop_states_of,
-    get_state,
-    register_state,
-)
+from guard._middleware_state import drop_states_of, get_state
 from guard.middleware import SecurityMiddleware
 
 AppT = TypeVar("AppT")
@@ -61,7 +56,7 @@ def _find_security_redis_handler(app: object) -> RedisManager | None:
     if config is None or not config.enable_redis:
         return None
     handler = REDIS_HANDLERS.lookup(config)
-    if isinstance(handler, RedisManager) and handler._redis is not None:
+    if isinstance(handler, RedisManager) and handler.is_connected_on_this_loop():
         return handler
     return None
 
@@ -93,37 +88,17 @@ async def initialize_like_http_if_cold(app: object, config: SecurityConfig) -> N
     middleware = _built_security_middleware(app) or _cold_security_middleware(app)
     if middleware is None:
         return
-    if middleware.guard_decorator is None:
-        middleware.guard_decorator = decorator
+    if middleware.guard_decorator is None and decorator is not None:
+        middleware._adopt_decorator(decorator)
     await middleware._ensure_initialized()
-
-
-def _register_state_from_middleware(
-    middleware: SecurityMiddleware, app: object
-) -> None:
-    register_state(
-        middleware.config,
-        middleware.guard_decorator,
-        MiddlewareState(
-            security_pipeline=middleware.security_pipeline,
-            composite_handler=middleware.handler_initializer.composite_handler,
-            event_bus=middleware.event_bus,
-            metrics_collector=middleware.metrics_collector,
-            response_factory=middleware.response_factory,
-            validator=middleware.validator,
-            bypass_handler=middleware.bypass_handler,
-            behavioral_processor=middleware.behavioral_processor,
-            handler_initializer=middleware.handler_initializer,
-            agent_handler=middleware.agent_handler,
-        ),
-        app,
-    )
 
 
 async def _warm_middleware_or_adopt(
     middleware: SecurityMiddleware, app: object
 ) -> None:
-    middleware.guard_decorator = resolve_app_state_decorator(app)
+    decorator = resolve_app_state_decorator(app)
+    if decorator is not None and decorator is not middleware.guard_decorator:
+        middleware._adopt_decorator(decorator)
     middleware._routing_app = app
     warm = get_state(middleware.config, middleware.guard_decorator, app)
     if warm is not None:
@@ -143,7 +118,7 @@ async def _warm_middleware_or_adopt(
         )
         return
     middleware.mark_initialized()
-    _register_state_from_middleware(middleware, app)
+    middleware._register_state(app)
 
 
 async def _release_redis_hold(app: object) -> None:

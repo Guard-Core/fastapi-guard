@@ -139,10 +139,11 @@ def _layout_holds(root: Sequence[object], layout: _Layout) -> bool:
             routes: Sequence[object] | None = root
         else:
             try:
-                routes = _routes_of(resolved[parent][index])
+                child = resolved[parent][index]
             except IndexError:
                 # A threadpool thread shrank the parent after its length was checked.
                 return False
+            routes = _routes_of(child)
         if routes is None or len(routes) != length or _identity(routes) != identity:
             return False
         resolved.append(routes)
