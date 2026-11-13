@@ -42,6 +42,7 @@ theme:
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Upgrading to 5.0.0: upgrading.md
   - Tutorial - User Guide:
     - First Steps: tutorial/first-steps.md
     - Integration Guide: tutorial/integration.md

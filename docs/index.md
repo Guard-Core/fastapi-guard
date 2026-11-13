@@ -165,10 +165,10 @@ FastAPI Guard now has a centralized cloud platform for monitoring, threat analys
 - **GDPR compliance** --- consent management, data export, account deletion
 - **Free tier** --- 10K events/month on the Individual plan
 
-Connect your existing setup in 2 minutes with [`guard-agent`](https://pypi.org/project/guard-agent/):
+Connect your existing setup in 2 minutes with the `agent` extra, which adds [`guard-agent`](https://pypi.org/project/guard-agent/):
 
 ```bash
-uv add guard-agent
+uv add "fastapi-guard[agent]"
 ```
 
 Then add the agent fields to your existing `SecurityConfig` - that's the entire integration. The middleware drives the agent's lifecycle for you; **no `AgentConfig`, no `lifespan` hook, no manual `start()/stop()` required.**
