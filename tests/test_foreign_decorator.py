@@ -18,6 +18,7 @@ from starlette.routing import Host, Mount
 
 from guard import SecurityDecorator
 from guard._declared_path_params import declared_path_param_problems
+from guard._owned_mounts import owns_its_routes
 from guard.asgi import PureASGISecurityMiddleware
 from guard.middleware import SecurityMiddleware
 from tests.test_lifespan_auto_warm import Lifespan, started
@@ -344,3 +345,55 @@ def test_one_foreign_handler_on_two_paths_is_reported_once() -> None:
         return {"ok": "both"}
 
     assert [p.kind for p in declared_path_param_problems(app, root_decorator)] == [KIND]
+
+
+class _GuardSubclass(SecurityMiddleware):
+    pass
+
+
+def test_a_mount_registering_a_subclass_of_the_guard_is_left_to_it() -> None:
+    app, root_decorator = _root(SecurityMiddleware, _config())
+    sub = _sub_with_own_guard(_GuardSubclass, SecurityDecorator)
+    app.mount("/sub", sub)
+
+    assert declared_path_param_problems(app, root_decorator) == []
+
+
+async def test_an_owned_mount_whose_guard_has_no_decorator_enforces_the_roots() -> None:
+    app, root_decorator = _root(
+        SecurityMiddleware, _config(fail_on_misconfiguration=False)
+    )
+    sub = FastAPI()
+    sub.add_middleware(SecurityMiddleware, config=_config())
+
+    @sub.get("/admin/")
+    @root_decorator.require_headers({"X-Need": "required"})
+    async def admin() -> dict[str, str]:
+        return {"admin": "reached"}
+
+    app.mount("/sub", sub)
+
+    assert await _get(app, "/sub/admin/") == 400
+    assert await _get(app, "/sub/admin/", headers=NEED) == 200
+
+
+class _AppIsItself:
+    """A wrapper whose ``app`` is itself, counting how often the walk reads it."""
+
+    reads = 0
+
+    @property
+    def app(self) -> "_AppIsItself":
+        type(self).reads += 1
+        assert type(self).reads < 20, "the walk did not stop at a node it had seen"
+        return self
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        return None
+
+
+def test_a_wrapper_chain_that_loops_ends_the_walk() -> None:
+    _AppIsItself.reads = 0
+    mount = Mount("/loop", app=_AppIsItself())
+
+    assert owns_its_routes(mount) is False

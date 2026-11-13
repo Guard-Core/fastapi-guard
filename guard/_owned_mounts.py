@@ -12,8 +12,9 @@ def _registers_guard_middleware(app: object) -> bool:
     from guard.asgi import PureASGISecurityMiddleware
     from guard.middleware import SecurityMiddleware
 
+    guards = (SecurityMiddleware, PureASGISecurityMiddleware)
     return any(
-        getattr(entry, "cls", None) in (SecurityMiddleware, PureASGISecurityMiddleware)
+        isinstance(cls := getattr(entry, "cls", None), type) and issubclass(cls, guards)
         for entry in getattr(app, "user_middleware", None) or ()
     )
 
@@ -24,7 +25,9 @@ def _runs_guard_middleware(route: object) -> bool:
     # it as middleware, or the app was wrapped in the pure-ASGI class before it
     # was mounted. The last two are a wrapper chain linked by `.app`.
     node = getattr(route, "app", None)
-    while node is not None:
+    seen: set[int] = set()
+    while node is not None and id(node) not in seen:
+        seen.add(id(node))
         if _is_guard_middleware(node) or _registers_guard_middleware(node):
             return True
         node = getattr(node, "app", None)
