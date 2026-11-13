@@ -166,7 +166,7 @@ FastAPI Guard has a centralized cloud platform for real-time monitoring and thre
 Connect your existing setup in 2 minutes:
 
 ```bash
-uv add guard-agent    # or: pip install guard-agent
+uv add "fastapi-guard[agent]"    # or: pip install "fastapi-guard[agent]"
 ```
 
 ```python

@@ -99,6 +99,14 @@ class _Cache:
     layout: _Layout
     decorator_id: int
     problems: tuple[Problem, ...]
+    # Counts the layouts built for this app, so what is keyed on the route table
+    # (the middleware's route-match cache) can tell it changed.
+    revision: int = 1
+
+
+def route_table_revision(app: object) -> int:
+    cache = getattr(getattr(app, "state", None), _CACHE_ATTRIBUTE, None)
+    return cache.revision if isinstance(cache, _Cache) else 0
 
 
 def _routes_of(route: object) -> Sequence[object] | None:
@@ -153,12 +161,14 @@ def check_declared_path_params_on_request(
 ) -> None:
     """Per request, in the number of route lists and not of routes: walk the whole
     table again only when a list changed. While problems stand and the flag is on,
-    every request raises a fresh error built from the cached problems."""
+    every request raises a fresh error built from the cached problems. An app with
+    no decorator keeps the layout too, for the route-match cache."""
     root = getattr(app, "routes", None)
     state = getattr(app, "state", None)
-    if guard_decorator is None or root is None or state is None:
+    if not isinstance(root, Sequence) or state is None:
         return
-    cache: _Cache | None = getattr(state, _CACHE_ATTRIBUTE, None)
+    found = getattr(state, _CACHE_ATTRIBUTE, None)
+    cache = found if isinstance(found, _Cache) else None
     if (
         cache is not None
         and cache.decorator_id == id(guard_decorator)
@@ -173,8 +183,14 @@ def check_declared_path_params_on_request(
         _layout_of(root),
         id(guard_decorator),
         tuple(declared_path_param_problems(app, guard_decorator)),
+        1 if cache is None else cache.revision + 1,
     )
     setattr(state, _CACHE_ATTRIBUTE, cache)
-    report_declared_path_params(
-        config, app, guard_decorator, problems=list(cache.problems), log_refusal=True
-    )
+    if guard_decorator is not None:
+        report_declared_path_params(
+            config,
+            app,
+            guard_decorator,
+            problems=list(cache.problems),
+            log_refusal=True,
+        )

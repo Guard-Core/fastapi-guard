@@ -2,6 +2,7 @@ import asyncio
 import stat
 import threading
 import time
+import weakref
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping
 from typing import TYPE_CHECKING
@@ -47,10 +48,11 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from guard._declared_path_params import (
     check_declared_path_params_on_request,
     report_declared_path_params,
+    route_table_revision,
 )
 from guard._lifespan_warm import warm_before_startup_complete
 from guard._owned_mounts import owns_its_routes
-from guard._response_headers import merge_vary
+from guard._response_headers import apply_cors_to_response
 from guard._route_gate_host import (
     hold_route_gate_host,
     release_route_gate_host,
@@ -81,6 +83,21 @@ _init_outage_lock = threading.Lock()
 _init_outage_samples: OrderedDict[str, float] = OrderedDict()
 
 
+_ROUTE_MATCH_FAILURE_SAMPLE_WINDOW_SECONDS = 60
+_route_match_failure_lock = threading.Lock()
+_route_match_failure_samples: OrderedDict[str, float] = OrderedDict()
+
+
+def _sample_route_match_failure_line(route: object) -> bool:
+    return observe_sampled_key(
+        _route_match_failure_samples,
+        _route_match_failure_lock,
+        type(route).__qualname__,
+        window=_ROUTE_MATCH_FAILURE_SAMPLE_WINDOW_SECONDS,
+        max_tracked=64,
+    )
+
+
 def _sample_init_outage_line() -> bool:
     return observe_sampled_key(
         _init_outage_samples,
@@ -95,6 +112,15 @@ _FULL = (Match.FULL,)
 _MOUNT_TEMPLATE = "guard_mount_template"
 _ROUTE_TEMPLATE = "guard_route_template"
 _OWNED_ROUTES = "guard_owned_routes"
+_ROUTE_MATCH_CACHE_SIZE = 4096
+_ROUTE_MATCH_KEY_MAX_LENGTH = 256
+_RouteMatch = tuple[object, dict[str, object], str | None, bool]
+
+
+def _bounded_key_part(text: str) -> str | int:
+    return text if len(text) <= _ROUTE_MATCH_KEY_MAX_LENGTH else hash(text)
+
+
 _FULL_OR_PARTIAL = (Match.FULL, Match.PARTIAL)
 
 
@@ -183,6 +209,13 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
         self.security_pipeline: SecurityCheckPipeline | None = None
         self._routing_app: object = None
+        self._route_matches: OrderedDict[tuple[object, ...], _RouteMatch] = (
+            OrderedDict()
+        )
+        self._route_matches_of: tuple[weakref.ref[object], int] | None = None
+        # True after a route walk in which a route's matches() raised: the walk is
+        # synchronous, so the request that ran it reads this right after.
+        self._route_walk_failed = False
 
         self._guard_response_factory = StarletteResponseFactory()
 
@@ -487,6 +520,47 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 getattr(route, "path", None),
                 False,
             )
+        host = route_gate_host()
+        app = scope.get("app")
+        if not host or app is None:
+            return self._walk_route_match(scope)
+        matches = self._route_matches_for(app)
+        # Attacker-chosen text is keyed by its hash (randomized per process, so a
+        # collision cannot be built) and the cache is an LRU: at most 4096 short keys.
+        key = (
+            scope.get("type"),
+            scope.get("method"),
+            _bounded_key_part(scope.get("path", "")),
+            _bounded_key_part(scope.get("root_path", "")),
+            _bounded_key_part(host),
+        )
+        found = matches.get(key)
+        if found is not None:
+            matches.move_to_end(key)
+            return found[0], dict(found[1]), found[2], found[3]
+        match = self._walk_route_match(scope)
+        if self._route_walk_failed:
+            return match
+        matches[key] = match
+        if len(matches) > _ROUTE_MATCH_CACHE_SIZE:
+            matches.popitem(last=False)
+        return match
+
+    def _route_matches_for(
+        self, app: object
+    ) -> OrderedDict[tuple[object, ...], _RouteMatch]:
+        # Valid while this app's route table holds the layout the per-request check
+        # (check_declared_path_params_on_request) last saw: a route added later, at
+        # the top or under a Mount, bumps the revision and empties the cache.
+        revision = route_table_revision(app)
+        held = self._route_matches_of
+        if held is None or held[0]() is not app or held[1] != revision:
+            self._route_matches.clear()
+            self._route_matches_of = (weakref.ref(app), revision)
+        return self._route_matches
+
+    def _walk_route_match(self, scope: Scope) -> _RouteMatch:
+        self._route_walk_failed = False
         route, params, matched = next(
             self._matching_routes_in_scope(scope, _FULL), (None, {}, {})
         )
@@ -641,6 +715,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         try:
             match, child = matches(scope)
         except Exception:
+            self._route_walk_failed = True
+            if _sample_route_match_failure_line(route):
+                self.logger.exception(
+                    "%s.matches raised while resolving the route; the request is "
+                    "treated as unresolved, so per-route decorator config is not "
+                    "applied to it",
+                    type(route).__qualname__,
+                )
             return Match.NONE, {}
         return match, child
 
@@ -677,7 +759,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 guard_request.state.guard_decorator = app_decorator
 
         self._routing_app = request.scope.get("app")
+        self._route_walk_failed = False
         route, path_params, template, owned = self._resolve_route_match(request.scope)
+        if self._route_walk_failed:
+            guard_request.state.guard_route_unresolved = True
         if not route:
             guard_request.state.guard_route_unresolved = True
             return
@@ -764,11 +849,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     ) -> None:
         if self._cors_handler is None:
             return
-        cors_headers = self._cors_handler.build_response_headers(request_headers)
-        for key, value in cors_headers.items():
-            if key.lower() == "vary":
-                value = merge_vary(response.headers.getlist("vary"), value)
-            response.headers[key] = value
+        apply_cors_to_response(
+            response, self._cors_handler.build_response_headers(request_headers)
+        )
 
     async def _handle_preflight(
         self, request: Request, guard_request: StarletteGuardRequest

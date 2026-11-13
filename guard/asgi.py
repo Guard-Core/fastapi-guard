@@ -53,7 +53,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from guard._lifespan_warm import warm_before_startup_complete
 from guard._response_headers import (
-    merge_vary,
+    apply_cors_to_response,
     with_cors_headers,
     with_default_headers,
 )
@@ -176,7 +176,7 @@ class _HeaderInjectingSend:
             )
             if origin := self._request.headers.get("origin"):
                 headers = with_cors_headers(
-                    headers, await self._manager_cors_headers(origin), replace=False
+                    headers, await self._manager_cors_headers(origin)
                 )
             if self._engine._cors_handler is not None:
                 headers = with_cors_headers(
@@ -184,7 +184,6 @@ class _HeaderInjectingSend:
                     self._engine._cors_handler.build_response_headers(
                         self._request.headers
                     ),
-                    replace=False,
                 )
             message = {**message, "headers": headers}
         elif message["type"] == "http.response.body":
@@ -492,16 +491,10 @@ class PureASGISecurityMiddleware:
         app on a bypassed or excluded route) is forwarded chunk by chunk;
         guard-generated responses go out as a single body message."""
         if self._engine._cors_handler is not None:
-            cors_headers = self._engine._cors_handler.build_response_headers(
-                request.headers
+            apply_cors_to_response(
+                response,
+                self._engine._cors_handler.build_response_headers(request.headers),
             )
-            for key, value in cors_headers.items():
-                if key.lower() == "vary":
-                    response.headers[key] = merge_vary(
-                        response.headers.getlist("vary"), value
-                    )
-                else:
-                    response.headers.setdefault(key, value)
         await send(
             {
                 "type": "http.response.start",
@@ -579,7 +572,6 @@ class _InlineDownstream:
         return with_cors_headers(
             headers,
             cors_handler.build_response_headers(self._request.headers),
-            replace=True,
         )
 
     async def raise_failure_after_response_sent(self) -> None:

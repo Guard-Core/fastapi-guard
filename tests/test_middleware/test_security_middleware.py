@@ -2323,7 +2323,9 @@ async def test_route_match_handles_missing_and_raising_matches() -> None:
             raise RuntimeError("boom")
 
     assert middleware._route_match(_NoMatches(), {}) == (Match.NONE, {})
+    assert middleware._route_walk_failed is False
     assert middleware._route_match(_RaisingMatches(), {}) == (Match.NONE, {})
+    assert middleware._route_walk_failed is True
 
 
 async def test_sub_routes_come_from_effective_candidates_when_the_route_has_them() -> (
