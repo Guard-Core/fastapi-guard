@@ -120,10 +120,12 @@ def _layout_holds(root: Sequence[object], layout: _Layout) -> bool:
     for parent, index, identity, length in layout:
         if parent < 0:
             routes: Sequence[object] | None = root
-        elif index < len(resolved[parent]):
-            routes = _routes_of(resolved[parent][index])
         else:
-            return False
+            try:
+                routes = _routes_of(resolved[parent][index])
+            except IndexError:
+                # A threadpool thread shrank the parent after its length was checked.
+                return False
         if routes is None or len(routes) != length or _identity(routes) != identity:
             return False
         resolved.append(routes)

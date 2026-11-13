@@ -236,3 +236,45 @@ def test_a_stored_layout_whose_index_is_past_its_parent_no_longer_holds() -> Non
     past_the_parent = (*layout, (1, len(inner), id(inner), 0))
 
     assert _declared_path_params._layout_holds(root, past_the_parent) is False
+
+
+class _ReportsItsRecordedLengthAfterShrinking(list[Any]):
+    """A route list that keeps reporting the length it had when the layout was
+    stored but no longer holds the routes: it stands in for a concurrent shrink
+    from a threadpool thread between the walk's length check and its item read."""
+
+    claimed = 0
+
+    def __len__(self) -> int:
+        return self.claimed
+
+
+def test_a_stored_layout_stops_holding_when_a_parent_shrinks_during_the_walk() -> None:
+    seed = Route("/seed", lambda request: JSONResponse({}))
+    outer = Mount("/a", routes=[Mount("/b", routes=[seed])])
+    parent = _ReportsItsRecordedLengthAfterShrinking(outer.routes)
+    parent.claimed = list.__len__(parent)
+    router: Any = outer.app
+    router.routes = parent
+    root: list[Any] = [outer]
+    layout = _declared_path_params._layout_of(root)
+    assert len(layout) == 3
+    assert _declared_path_params._layout_holds(root, layout) is True
+
+    parent.clear()
+
+    assert list.__len__(parent) == 0
+    assert _declared_path_params._layout_holds(root, layout) is False
+
+
+def test_a_stored_layout_stops_holding_when_a_parent_shrank_before_the_check() -> None:
+    seed = Route("/seed", lambda request: JSONResponse({}))
+    outer = Mount("/a", routes=[Mount("/b", routes=[seed])])
+    root: list[Any] = [outer]
+    layout = _declared_path_params._layout_of(root)
+    assert len(layout) == 3
+    assert _declared_path_params._layout_holds(root, layout) is True
+
+    outer.routes.clear()
+
+    assert _declared_path_params._layout_holds(root, layout) is False
