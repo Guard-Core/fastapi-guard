@@ -1,11 +1,14 @@
 import os
 from datetime import datetime
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi import FastAPI, Request, Response
+from guard_core._utils.route_gate import route_unknown_to_decorator_problem
 from guard_core.decorators.base import RouteConfig
 from guard_core.detection_result import DetectionResult
+from guard_core.exceptions import MisconfigurationError
 from guard_core.handlers.behavior_handler import BehaviorRule
 from guard_core.protocols import GuardResponse
 from httpx import ASGITransport, AsyncClient
@@ -420,22 +423,35 @@ async def test_get_route_decorator_config_fallback_to_middleware_decorator() -> 
     assert result is None
 
 
-async def test_get_route_decorator_config_no_matching_route() -> None:
-    app = FastAPI()
-    config = SecurityConfig()
-    middleware = SecurityMiddleware(app, config=config)
-
-    decorator = SecurityDecorator(config)
-
-    mock_request = Mock()
-    mock_request.url.path = "/nonexistent"
+def _request_of_an_unknown_route(config: SecurityConfig) -> tuple[Mock, Any]:
+    middleware = SecurityMiddleware(FastAPI(), config=config)
     mock_request = Mock()
     mock_request.state = Mock()
     mock_request.state.guard_route_id = "nonexistent_route"
-    mock_request.state.guard_decorator = decorator
+    mock_request.state.guard_decorator = SecurityDecorator(config)
+    return mock_request, middleware
+
+
+async def test_get_route_decorator_config_no_matching_route() -> None:
+    mock_request, middleware = _request_of_an_unknown_route(
+        SecurityConfig(fail_on_misconfiguration=False)
+    )
 
     result = middleware.route_resolver.get_route_config(mock_request)
     assert result is None
+
+
+async def test_get_route_decorator_config_no_matching_route_is_refused_by_default() -> (
+    None
+):
+    mock_request, middleware = _request_of_an_unknown_route(SecurityConfig())
+
+    with pytest.raises(MisconfigurationError) as refused:
+        middleware.route_resolver.get_route_config(mock_request)
+
+    assert [p.kind for p in refused.value.problems] == [
+        route_unknown_to_decorator_problem("nonexistent_route").kind
+    ]
 
 
 async def test_bypass_all_security_checks() -> None:

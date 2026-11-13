@@ -6,10 +6,15 @@ from guard_core._misconfiguration import (
     report_declared_path_param_problems,
 )
 from guard_core._misconfiguration_kinds import Problem
-from guard_core._utils.route_gate import detection_exclusion_path_param_problems
-from guard_core.decorators.base import BaseSecurityDecorator
+from guard_core._utils.route_gate import (
+    detection_exclusion_path_param_problems,
+    route_unknown_to_decorator_problem,
+)
+from guard_core.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.models import SecurityConfig
 from starlette.routing import Host, Mount
+
+from guard._owned_mounts import owns_its_routes
 
 
 def _templates_and_endpoints(
@@ -20,12 +25,23 @@ def _templates_and_endpoints(
         if callable(included):
             for context in included():
                 yield base + context.path, context.endpoint
+        elif isinstance(route, (Mount, Host)) and owns_its_routes(route):
+            continue
         elif isinstance(route, Mount):
             yield from _templates_and_endpoints(route.routes, base + route.path)
         elif isinstance(route, Host):
             yield from _templates_and_endpoints(route.routes, base)
         elif (endpoint := getattr(route, "endpoint", None)) is not None:
             yield base + getattr(route, "path", ""), endpoint
+
+
+def _route_configs(
+    routes: Iterable[object], guard_decorator: BaseSecurityDecorator
+) -> Iterator[tuple[str, str | None, RouteConfig | None]]:
+    for template, endpoint in _templates_and_endpoints(routes):
+        route_id = getattr(endpoint, "_guard_route_id", None)
+        route_config = guard_decorator.get_route_config(route_id) if route_id else None
+        yield template, route_id, route_config
 
 
 def declared_path_param_problems(
@@ -35,16 +51,17 @@ def declared_path_param_problems(
     if guard_decorator is None or routes is None:
         return []
     problems: list[Problem] = []
-    for template, endpoint in _templates_and_endpoints(routes):
-        route_id = getattr(endpoint, "_guard_route_id", None)
-        route_config = guard_decorator.get_route_config(route_id) if route_id else None
-        declared = getattr(route_config, "excluded_detection_path_params", None)
-        if not declared:
-            continue
-        problems += detection_exclusion_path_param_problems(
-            str(route_id), template, declared
-        )
-    return problems
+    unknown: dict[str, Problem] = {}
+    for template, route_id, route_config in _route_configs(routes, guard_decorator):
+        if route_id and route_config is None:
+            unknown.setdefault(
+                str(route_id), route_unknown_to_decorator_problem(str(route_id))
+            )
+        elif declared := getattr(route_config, "excluded_detection_path_params", None):
+            problems += detection_exclusion_path_param_problems(
+                str(route_id), template, declared
+            )
+    return problems + list(unknown.values())
 
 
 def report_declared_path_params(
