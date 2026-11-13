@@ -52,7 +52,7 @@ from guard._declared_path_params import (
 )
 from guard._lifespan_warm import warm_before_startup_complete
 from guard._owned_mounts import owns_its_routes
-from guard._response_headers import merge_vary
+from guard._response_headers import apply_cors_to_response
 from guard._route_gate_host import (
     hold_route_gate_host,
     release_route_gate_host,
@@ -849,11 +849,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     ) -> None:
         if self._cors_handler is None:
             return
-        cors_headers = self._cors_handler.build_response_headers(request_headers)
-        for key, value in cors_headers.items():
-            if key.lower() == "vary":
-                value = merge_vary(response.headers.getlist("vary"), value)
-            response.headers[key] = value
+        apply_cors_to_response(
+            response, self._cors_handler.build_response_headers(request_headers)
+        )
 
     async def _handle_preflight(
         self, request: Request, guard_request: StarletteGuardRequest

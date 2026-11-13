@@ -235,12 +235,14 @@ async def test_a_blocked_response_carries_the_security_headers(
     assert _values(response, "x-content-type-options") == ["nosniff"]
 
 
-async def test_the_apps_own_cors_header_wins_on_the_pure_asgi_response() -> None:
+async def test_guards_cors_header_replaces_the_apps_own_on_the_pure_asgi_response() -> (
+    None
+):
     config = _config(enable_cors=True, cors_allow_origins=[_ORIGIN])
 
     response = await _get(
         PureASGISecurityMiddleware, config, "/own-cors", origin=_ORIGIN
     )
 
-    assert _values(response, "access-control-allow-origin") == ["https://mine.example"]
+    assert _values(response, "access-control-allow-origin") == [_ORIGIN]
     assert _values(response, "vary") == ["Origin"]

@@ -1,5 +1,7 @@
 from collections.abc import Iterable, Mapping
 
+from starlette.responses import Response
+
 HeaderList = list[tuple[bytes, bytes]]
 
 
@@ -39,16 +41,23 @@ def with_default_headers(
     return merged
 
 
-def with_cors_headers(
-    headers: HeaderList, cors: Mapping[str, str], *, replace: bool
-) -> HeaderList:
+def with_cors_headers(headers: HeaderList, cors: Mapping[str, str]) -> HeaderList:
+    """Guard's CORS headers replace the response's of the same name (the engine's
+    contract); `Vary` is merged, never replaced."""
     merged = list(headers)
     for name, value in cors.items():
         lowered = name.lower()
-        present = _named(merged, lowered)
         if lowered == "vary":
-            value = merge_vary([v.decode("latin-1") for v in present], value)
-        elif present and not replace:
-            continue
+            value = merge_vary(
+                [v.decode("latin-1") for v in _named(merged, lowered)], value
+            )
         merged = _appended(_without(merged, lowered), lowered, value)
     return merged
+
+
+def apply_cors_to_response(response: Response, cors: Mapping[str, str]) -> None:
+    """The same semantics as `with_cors_headers`, for a Starlette response."""
+    for key, value in cors.items():
+        if key.lower() == "vary":
+            value = merge_vary(response.headers.getlist("vary"), value)
+        response.headers[key] = value
