@@ -4,7 +4,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import TypeVar, overload
 
 from guard_core import release_app
-from guard_core._utils.config_registry import REDIS_HANDLERS
+from guard_core.adapter_support import REDIS_HANDLERS
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
