@@ -37,7 +37,7 @@ from guard_core.utils import (
 )
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
-from starlette.routing import Match, Mount, get_route_path
+from starlette.routing import Host, Match, Mount, get_route_path
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -46,6 +46,7 @@ from guard._declared_path_params import (
     report_declared_path_params,
 )
 from guard._lifespan_warm import warm_before_startup_complete
+from guard._owned_mounts import owns_its_routes
 from guard._response_headers import merge_vary
 from guard._route_gate_host import (
     hold_route_gate_host,
@@ -90,6 +91,7 @@ def _sample_init_outage_line() -> bool:
 _FULL = (Match.FULL,)
 _MOUNT_TEMPLATE = "guard_mount_template"
 _ROUTE_TEMPLATE = "guard_route_template"
+_OWNED_ROUTES = "guard_owned_routes"
 _FULL_OR_PARTIAL = (Match.FULL, Match.PARTIAL)
 
 
@@ -119,6 +121,11 @@ _PIPELINE_NOT_INITIALIZED = (
     "The security pipeline is not built: the middleware handled a request "
     "before initialization completed"
 )
+
+
+def _route_id_of(endpoint: object, owned: bool) -> str | None:
+    # An app mounted with a guard middleware of its own enforces its routes itself.
+    return None if owned else getattr(endpoint, "_guard_route_id", None)
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -438,19 +445,29 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     def _resolve_route_with_params(
         self, scope: Scope
     ) -> tuple[object, dict[str, object]]:
-        route, params, _ = self._resolve_route_match(scope)
+        route, params, _, _ = self._resolve_route_match(scope)
         return route, params
 
     def _resolve_route_match(
         self, scope: Scope
-    ) -> tuple[object, dict[str, object], str | None]:
+    ) -> tuple[object, dict[str, object], str | None, bool]:
         route = scope.get("route")
         if route:
-            return route, scope.get("path_params", {}), getattr(route, "path", None)
+            return (
+                route,
+                scope.get("path_params", {}),
+                getattr(route, "path", None),
+                False,
+            )
         route, params, matched = next(
             self._matching_routes_in_scope(scope, _FULL), (None, {}, {})
         )
-        return route, params, matched.get(_ROUTE_TEMPLATE)
+        return (
+            route,
+            params,
+            matched.get(_ROUTE_TEMPLATE),
+            matched.get(_OWNED_ROUTES, False),
+        )
 
     def _matching_routes(
         self, scope: Scope, accepted: tuple[Match, ...]
@@ -542,8 +559,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             if not sub_routes:
                 yield r, params, child_scope
             else:
-                if isinstance(r, Mount):
-                    child_scope[_MOUNT_TEMPLATE] = mount_template + r.path
+                self._enter_mount(r, child_scope, mount_template)
                 # A Mount with middleware keeps the mounted app, whose routes these
                 # are, in _base_app and the middleware-wrapped one in app.
                 mounted = getattr(r, "_base_app", getattr(r, "app", None))
@@ -556,6 +572,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     ),
                     accepted,
                 )
+
+    def _enter_mount(
+        self, route: object, child_scope: Scope, mount_template: str
+    ) -> None:
+        if isinstance(route, Mount):
+            child_scope[_MOUNT_TEMPLATE] = mount_template + route.path
+        if isinstance(route, (Mount, Host)) and owns_its_routes(route):
+            child_scope[_OWNED_ROUTES] = True
 
     def _first_visit(
         self, seen: set[tuple[int, object, object]], node: object, scope: Scope
@@ -625,7 +649,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 guard_request.state.guard_decorator = app_decorator
 
         self._routing_app = request.scope.get("app")
-        route, path_params, template = self._resolve_route_match(request.scope)
+        route, path_params, template, owned = self._resolve_route_match(request.scope)
         if not route:
             guard_request.state.guard_route_unresolved = True
             return
@@ -636,8 +660,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         if ep is None:
             return
 
-        if hasattr(ep, "_guard_route_id"):
-            guard_request.state.guard_route_id = ep._guard_route_id
+        route_id = _route_id_of(ep, owned)
+        if route_id is not None:
+            guard_request.state.guard_route_id = route_id
         if hasattr(ep, "__module__") and hasattr(ep, "__qualname__"):
             guard_request.state.guard_endpoint_id = f"{ep.__module__}.{ep.__qualname__}"
         if getattr(self.security_pipeline, "needs_route_identity", False):

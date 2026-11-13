@@ -76,7 +76,7 @@ async def test_ensure_initialized_without_request_skips_adoption() -> None:
 
 async def test_ensure_initialized_keeps_explicit_decorator_handler() -> None:
     app = FastAPI()
-    config = SecurityConfig(enable_redis=False)
+    config = SecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
     explicit_decorator = SecurityDecorator(config)
     app_state_decorator = SecurityDecorator(config)
 
