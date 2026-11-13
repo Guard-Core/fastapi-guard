@@ -12,43 +12,45 @@ from guard_core.models import SecurityConfig
 from guard._declared_path_params import report_declared_path_params
 from guard._decorator_adoption import resolve_app_state_decorator
 from guard._middleware_state import drop_states_of, get_state
+from guard.asgi import PureASGISecurityMiddleware
 from guard.middleware import SecurityMiddleware
 
 AppT = TypeVar("AppT")
 
 
-def _find_security_middleware(app: object) -> SecurityMiddleware | None:
-    user_middleware = getattr(app, "user_middleware", None)
-    if not user_middleware:
-        return None
-    for entry in user_middleware:
-        if getattr(entry, "cls", None) is SecurityMiddleware:
-            kwargs = getattr(entry, "kwargs", None)
+_SECURITY_MIDDLEWARES = (SecurityMiddleware, PureASGISecurityMiddleware)
+
+
+def _engine_of(node: object) -> SecurityMiddleware | None:
+    # The pure-ASGI class holds a SecurityMiddleware as its engine.
+    if isinstance(node, PureASGISecurityMiddleware):
+        return node._engine
+    return node if isinstance(node, SecurityMiddleware) else None
+
+
+def _declared_security_entry(
+    app: object,
+) -> tuple[type, Mapping[str, object]] | None:
+    for entry in getattr(app, "user_middleware", None) or ():
+        cls = getattr(entry, "cls", None)
+        if isinstance(cls, type) and issubclass(cls, _SECURITY_MIDDLEWARES):
+            kwargs: Mapping[str, object] | None = getattr(entry, "kwargs", None)
             if kwargs is None:
                 kwargs = getattr(entry, "options", {})
-            try:
-                built: SecurityMiddleware = entry.cls(app, **kwargs)
-                return built
-            except Exception:
-                return None
+            return cls, kwargs
     return None
+
+
+def _find_security_middleware(app: object) -> SecurityMiddleware | None:
+    return _built_security_middleware(app) or _cold_security_middleware(app)
 
 
 def _find_security_config(app: object) -> SecurityConfig | None:
-    user_middleware = getattr(app, "user_middleware", None)
-    if not user_middleware:
+    entry = _declared_security_entry(app)
+    if entry is None:
         return None
-    for entry in user_middleware:
-        cls = getattr(entry, "cls", None)
-        if cls is SecurityMiddleware:
-            kwargs = getattr(entry, "kwargs", None)
-            if kwargs is None:
-                kwargs = getattr(entry, "options", {})
-            config = kwargs.get("config")
-            if isinstance(config, SecurityConfig):
-                return config
-            return None
-    return None
+    config = entry[1].get("config")
+    return config if isinstance(config, SecurityConfig) else None
 
 
 def _find_security_redis_handler(app: object) -> RedisManager | None:
@@ -64,8 +66,9 @@ def _find_security_redis_handler(app: object) -> RedisManager | None:
 def _built_security_middleware(app: object) -> SecurityMiddleware | None:
     node = getattr(app, "middleware_stack", None)
     while node is not None:
-        if isinstance(node, SecurityMiddleware):
-            return node
+        engine = _engine_of(node)
+        if engine is not None:
+            return engine
         node = getattr(node, "app", None)
     return None
 
@@ -75,8 +78,12 @@ def _cold_security_middleware(app: object) -> SecurityMiddleware | None:
     kept = getattr(state, "_guard_cold_security_middleware", None)
     if isinstance(kept, SecurityMiddleware):
         return kept
-    built = _find_security_middleware(app)
-    if built is not None and state is not None:
+    entry = _declared_security_entry(app)
+    if entry is None:
+        return None
+    # Built before the app's own stack exists, once: it is kept on the app.
+    built = _engine_of(entry[0](app, **entry[1]))
+    if state is not None:
         state._guard_cold_security_middleware = built
     return built
 

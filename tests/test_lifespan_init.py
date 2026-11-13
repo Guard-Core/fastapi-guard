@@ -214,7 +214,7 @@ async def test_find_security_middleware_falls_back_to_options_attr() -> None:
 
 
 @pytest.mark.asyncio
-async def test_find_security_middleware_returns_none_on_instantiation_failure() -> None:
+async def test_find_security_middleware_raises_what_the_constructor_raises() -> None:
     app = FastAPI()
 
     class BrokenEntry:
@@ -223,8 +223,8 @@ async def test_find_security_middleware_returns_none_on_instantiation_failure() 
 
     app.user_middleware = cast(list[Middleware], [BrokenEntry()])
 
-    instance = _find_security_middleware(app)
-    assert instance is None
+    with pytest.raises(AttributeError, match="custom_log_file"):
+        _find_security_middleware(app)
 
 
 @pytest.mark.asyncio
