@@ -225,3 +225,14 @@ async def test_g_leak_the_cache_does_not_keep_the_app_alive(
     gc.collect()
 
     assert reference() is None
+
+
+def test_a_stored_layout_whose_index_is_past_its_parent_no_longer_holds() -> None:
+    inner = [Route("/seed", lambda request: JSONResponse({}))]
+    root: list[Any] = [Mount("/m", routes=inner)]
+    layout = _declared_path_params._layout_of(root)
+    assert _declared_path_params._layout_holds(root, layout) is True
+
+    past_the_parent = (*layout, (1, len(inner), id(inner), 0))
+
+    assert _declared_path_params._layout_holds(root, past_the_parent) is False
