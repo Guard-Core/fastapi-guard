@@ -113,3 +113,40 @@ def test_the_adapter_holds_no_copy_of_the_engine_text() -> None:
 
 
 _ = (SecurityDecorator, SecurityMiddleware, PureASGISecurityMiddleware)
+
+
+@CLASSES
+@pytest.mark.parametrize(
+    ("fail_secure", "passive_mode"),
+    [(True, False), (False, False), (True, True)],
+    ids=["fail_secure", "fail_open", "passive"],
+)
+async def test_the_refusal_is_a_500_and_the_endpoint_never_runs(
+    middleware_class: type, fail_secure: bool, passive_mode: bool
+) -> None:
+    ran: list[int] = []
+
+    def declare(app: FastAPI, decorator: SecurityDecorator) -> None:
+        @decorator.detection_exclusion(path_params={"ghost"})
+        @app.get("/items/{item_id:int}")
+        async def item(item_id: int) -> dict[str, int]:
+            ran.append(item_id)
+            return {"item": item_id}
+
+    config = _config(
+        fail_on_misconfiguration=True,
+        fail_secure=fail_secure,
+        passive_mode=passive_mode,
+    )
+    app = _app(middleware_class, config, declare)
+
+    async with AsyncClient(
+        transport=ASGITransport(
+            app, client=("203.0.113.9", 4321), raise_app_exceptions=False
+        ),
+        base_url="http://t",
+    ) as client:
+        codes = [(await client.get("/items/7")).status_code for _ in range(3)]
+
+    assert codes == [500, 500, 500]
+    assert ran == []
