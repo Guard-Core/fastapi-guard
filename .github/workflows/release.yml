@@ -14,13 +14,31 @@ concurrency:
 jobs:
   ci-gate:
     name: ci-gate
-    # Same workflow file as the PR CI (python matrix, coverage gate): the release never runs a weaker gate.
-    # A called workflow's jobs report as "ci-gate / <job>", so none of them can be mistaken for the required `ci` check.
+    # Dispatches the PR CI (ci.yml) at this release's ref and waits for that run: the release never runs a weaker gate.
+    # The dispatched run's head_sha is checked against this run's commit, so a moved ref cannot pass the gate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
     permissions:
-      contents: read # check out the repository
-    uses: ./.github/workflows/ci.yml
-    secrets:
-      IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+      actions: write # dispatch ci.yml and watch its run (GITHUB_TOKEN dispatches always create runs)
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_REF: ${{ github.ref_name }}
+      RELEASE_SHA: ${{ github.sha }}
+    steps:
+      - name: Dispatch ci.yml at the release ref and wait for the run
+        run: |
+          set -euo pipefail
+          run_id="$(gh api --method POST "repos/${GH_REPO}/actions/workflows/ci.yml/dispatches" -f ref="$RELEASE_REF" -F return_run_details=true --jq .workflow_run_id)"
+          [[ -n "$run_id" ]] || { echo "::error::dispatch returned no run id"; exit 1; }
+          echo "dispatched ci.yml at $RELEASE_REF as run $run_id"
+          head_sha="$(gh api "repos/${GH_REPO}/actions/runs/${run_id}" --jq .head_sha)"
+          if [[ "$head_sha" != "$RELEASE_SHA" ]]; then
+            echo "::error::ci.yml ran at $head_sha, not at the release commit $RELEASE_SHA"
+            exit 1
+          fi
+          gh run watch "$run_id" --exit-status --interval 30
 
   cve-scan:
     name: cve-scan

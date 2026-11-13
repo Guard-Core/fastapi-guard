@@ -8,11 +8,6 @@ on:
     branches:
       - master
   workflow_dispatch:
-  # release.yml calls this file so the release gate is the PR gate, never a copy of it.
-  workflow_call:
-    secrets:
-      IPINFO_TOKEN:
-        required: false
 
 permissions:
   contents: read # check out the repository
